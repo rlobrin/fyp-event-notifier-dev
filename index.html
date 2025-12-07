@@ -29,7 +29,6 @@
     </script>
     
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
 
@@ -276,10 +275,41 @@
             </div>
 
             <div id="aboutTab" class="hidden tab-content w-full h-full p-6 overflow-y-auto">
-                <div class="max-w-3xl mx-auto space-y-6 text-center">
-                    <h2 class="text-2xl font-bold">FYP Event Notifier</h2>
-                    <p class="text-gray-500">Optical Character Recognition for Roblox</p>
-                    <div class="text-xs text-gray-400 mt-10">&copy; <span id="currentYear"></span></div>
+                <div class="max-w-3xl mx-auto space-y-6">
+                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm bg-white dark:bg-gray-800 overflow-hidden">
+                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 font-bold text-cyan-600 border-b border-gray-200 dark:border-gray-600 flex items-center">
+                            <i class="bi bi-info-circle mr-2"></i> About This Tool
+                        </div>
+                        <div class="p-4">
+                            <p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
+                                This is an advanced automation utility for the Roblox game: <strong>Feed Your Pet</strong>. 
+                                It utilizes real-time Optical Character Recognition (OCR) to visually monitor your screen for specific Moon or Weather text and instantly relays those events to Discord.
+                            </p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded border border-gray-200 dark:border-gray-700">
+                                    <h6 class="font-bold text-xs uppercase text-blue-600 mb-1"><i class="bi bi-layers-half mr-1"></i> Dual-Region Scan</h6>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Monitor two distinct areas of your screen simultaneously.</p>
+                                </div>
+                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded border border-gray-200 dark:border-gray-700">
+                                    <h6 class="font-bold text-xs uppercase text-green-600 mb-1"><i class="bi bi-graph-up mr-1"></i> Live Analytics</h6>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Tracks event history, calculates average duration, and visualizes occurrence rates.</p>
+                                </div>
+                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded border border-gray-200 dark:border-gray-700">
+                                    <h6 class="font-bold text-xs uppercase text-indigo-600 mb-1"><i class="bi bi-sliders mr-1"></i> Smart Configs</h6>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Save, Rename, and Load multiple coordinate presets.</p>
+                                </div>
+                                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded border border-gray-200 dark:border-gray-700">
+                                    <h6 class="font-bold text-xs uppercase text-purple-600 mb-1"><i class="bi bi-broadcast mr-1"></i> Webhook Routing</h6>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Route specific events to specific Discord channels.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center text-gray-500">
+                        <div class="mb-4"><small class="uppercase font-bold tracking-wider text-xs">Created By</small><div class="mt-1"><span class="bg-gray-800 text-white px-3 py-1 rounded text-sm"><i class="bi bi-discord mr-1"></i> BlackBox (@rlobrin)</span></div></div>
+                        <div class="mb-4"><small class="uppercase font-bold tracking-wider text-xs">Supported By</small><div class="mt-1"><span class="bg-gray-500 text-white px-3 py-1 rounded text-sm"><i class="bi bi-discord mr-1"></i> Gunnster247 (@gunnster247)</span></div></div>
+                        <div class="mt-6 border-t border-gray-300 dark:border-gray-700 pt-3 text-xs">&copy; <span id="currentYear"></span> All Rights Reserved.</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -574,7 +604,9 @@
                 videoElement.onloadedmetadata = () => {
                     videoElement.play();
                     connectScreenButton.innerHTML = '<i class="bi bi-display"></i> Connected (Stop)';
-                    connectScreenButton.classList.replace('bg-blue-600', 'border'); connectScreenButton.classList.add('border-blue-500', 'text-blue-500');
+                    // FIX: Remove old classes first, then add new ones
+                    connectScreenButton.classList.remove('bg-blue-600', 'text-white', 'hover:bg-blue-700');
+                    connectScreenButton.classList.add('border', 'border-blue-500', 'text-blue-500', 'hover:bg-blue-50');
                     processButton.disabled = false;
                     if(previewInterval) clearInterval(previewInterval); previewInterval = setInterval(drawLivePreview, 100);
                     rawCaptureContainer.style.display = 'flex'; viewPlaceholder.style.display = 'none';
@@ -589,7 +621,9 @@
             localStream = null; videoElement.srcObject = null;
             if(ocrScanInterval) toggleProcess(true);
             connectScreenButton.innerHTML = '<i class="bi bi-display"></i> Connect';
-            connectScreenButton.classList.remove('border', 'border-blue-500', 'text-blue-500'); connectScreenButton.classList.add('bg-blue-600', 'text-white');
+            // FIX: Remove new classes, add back old ones
+            connectScreenButton.classList.remove('border', 'border-blue-500', 'text-blue-500', 'hover:bg-blue-50');
+            connectScreenButton.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700');
             processButton.disabled = true; rawCaptureContainer.style.display = 'none'; viewPlaceholder.style.display = 'block';
             if(previewInterval) clearInterval(previewInterval);
             addLog("Screen Disconnected."); showToast("Screen Source Disconnected.");
@@ -602,31 +636,24 @@
             if (scanMode === 'dual') {
                 const r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
                 const mw = Math.max(r1.w, r2.w); const th = r1.h + r2.h + 2; 
-                captureViewCanvas.width = mw; captureViewCanvas.height = th;
+                if(captureViewCanvas.width !== mw || captureViewCanvas.height !== th) { captureViewCanvas.width = mw; captureViewCanvas.height = th; }
                 ctx.fillStyle = '#222'; ctx.fillRect(0, 0, mw, th);
                 ctx.drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, r1.w, r1.h);
                 ctx.fillStyle = '#06b6d4'; ctx.fillRect(0, r1.h, mw, 2);
                 ctx.drawImage(videoElement, r2.x, r2.y, r2.w, r2.h, 0, r1.h + 2, r2.w, r2.h);
             } else {
-                captureViewCanvas.width = r1.w; captureViewCanvas.height = r1.h;
+                if(captureViewCanvas.width !== r1.w || captureViewCanvas.height !== r1.h) { captureViewCanvas.width = r1.w; captureViewCanvas.height = r1.h; }
                 ctx.drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, r1.w, r1.h);
             }
         }
         function updatePreviewAndSize() { drawLivePreview(); }
 
-        // --- FIX 2: Tesseract Initialization v5 Syntax ---
+        // --- FIX: Correct Tesseract v5 Init ---
         async function initTesseract() {
             if (worker && isWorkerReady) return true;
             try {
                 if (!worker) {
-                    worker = await Tesseract.createWorker('eng', 1, {
-                        logger: () => {}, 
-                        errorHandler: err => console.error(err)
-                    });
-                    await worker.setParameters({ 
-                        tessedit_pageseg_mode: '7', 
-                        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/.,%- ' 
-                    });
+                    worker = await Tesseract.createWorker('eng'); // v5 syntax
                 }
                 isWorkerReady = true;
                 return true;
@@ -675,20 +702,13 @@
             }
         }
 
-        // --- FIX 3, 4: Updated Scan Logic (Freeze Fix + Canvas Thrashing Fix) ---
+        // --- FIX: Safely Handle Canvas Size ---
         async function scanCameraImage() {
-            // 1. Checks
             if (videoElement.readyState < videoElement.HAVE_ENOUGH_DATA || !ocrScanInterval || isOcrBusy || !isWorkerReady) return;
-
-            // 2. Lock
             isOcrBusy = true;
 
-            // 3. Watchdog (Freeze fix)
             const watchdog = setTimeout(() => {
-                if (isOcrBusy) {
-                    console.warn("OCR timed out. Resetting busy flag.");
-                    isOcrBusy = false;
-                }
+                if (isOcrBusy) { console.warn("OCR timed out."); isOcrBusy = false; }
             }, 10000);
 
             try {
@@ -696,12 +716,10 @@
                 const ctx = canvasElement.getContext('2d');
                 let boundaryY = 0; 
                 const SCAN_SCALE = 2;
-
-                // Calculate Dimensions First
-                let finalW, finalH, w1, h1, w2, h2, r2;
+                let finalW, finalH, w1, h1, w2, h2;
 
                 if (scanMode === 'dual') {
-                    r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
+                    const r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
                     w1 = r1.w * SCAN_SCALE; h1 = r1.h * SCAN_SCALE;
                     w2 = r2.w * SCAN_SCALE; h2 = r2.h * SCAN_SCALE;
                     finalW = Math.max(w1, w2);
@@ -713,14 +731,15 @@
                     boundaryY = finalH; 
                 }
 
-                // 4. Memory Fix: Only resize if dimensions actually changed
+                // Only resize if different (Memory Fix)
                 if (canvasElement.width !== finalW || canvasElement.height !== finalH) {
                     canvasElement.width = finalW;
                     canvasElement.height = finalH;
                 }
 
-                // Draw
                 if (scanMode === 'dual') {
+                    const r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
+                    // Note: w1/h1 are scaled, r1.w/r1.h are source.
                     ctx.drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, w1, h1);
                     ctx.drawImage(videoElement, r2.x, r2.y, r2.w, r2.h, 0, h1, w2, h2);
                 } else {
@@ -729,9 +748,7 @@
 
                 applyImagePreprocessing(ctx, finalW, finalH);
                 
-                // 5. Run Async OCR (v5 returns promise with {data})
                 const { data } = await worker.recognize(canvasElement);
-                
                 clearTimeout(watchdog);
                 if (!ocrScanInterval) { isOcrBusy = false; return; }
                 
@@ -765,10 +782,8 @@
                     const { item, region } = matchData;
                     if (region === 1) foundR1 = true;
                     if (region === 2) foundR2 = true;
-
-                    if (activeItems[name]) {
-                        activeItems[name].graceEndTime = null; 
-                    } else {
+                    if (activeItems[name]) { activeItems[name].graceEndTime = null; } 
+                    else {
                         addLog(`**[START]** ${name} (R${region})`);
                         activeItems[name] = { item, start: Date.now(), graceEndTime: null };
                         sendDiscordNotification(item, "start");
@@ -906,7 +921,6 @@
             cooldownTimerLog.textContent = `Active: ${list.length}`;
         }
         
-        // --- FIX 5: Cap Logs to 100 items ---
         function addLog(msg) { 
             const time = new Date().toLocaleTimeString();
             logContentDiv.insertAdjacentHTML('afterbegin', `<div class="mb-1"><span class="text-gray-400">[${time}]</span> ${msg}</div>`);
