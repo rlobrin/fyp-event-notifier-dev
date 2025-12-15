@@ -1381,6 +1381,8 @@
     function renderActiveStatus() {
         const now = Date.now();
         const keysToRemove = [];
+
+        // 1. Existing cleanup logic for ending events
         Object.keys(activeItems).forEach(key => {
             const state = activeItems[key];
             if (state.graceEndTime !== null) {
@@ -1399,19 +1401,38 @@
         keysToRemove.forEach(k => delete activeItems[k]);
 
         const list = Object.values(activeItems);
+        
+        // Handle empty state
         if(list.length === 0) { 
             cooldownsPlaceholder.style.display='block'; 
             activeMoonsSection.classList.add('hidden'); activeWeatherSection.classList.add('hidden');
-            cooldownTimerLog.textContent = ocrRunning ? "Scanning..." : "Idle"; return; 
+            cooldownTimerLog.textContent = ocrRunning ? "Scanning..." : "Idle"; 
+            return; 
         }
+        
         cooldownsPlaceholder.style.display='none';
         
         const moons = list.filter(s => s.item.type === 'Moon');
         const weathers = list.filter(s => s.item.type === 'Weather');
         
+        // --- NEW: Get list of currently active webhook IDs ---
+        const activeWebhookIds = webhookList.filter(w => w.active).map(w => w.id);
+
         const generateHTML = (items) => items.map(s => {
             const el = Date.now() - s.start;
             let statusHtml = "";
+
+            // --- NEW: Check if this event is suppressed ---
+            // It is suppressed if it has NO assigned webhooks OR none of its assigned webhooks are active
+            const isSuppressed = !s.item.webhookIds || !s.item.webhookIds.some(id => activeWebhookIds.includes(id));
+            
+            // Create the badge HTML
+            const suppressedBadge = isSuppressed 
+                ? `<span class="ml-2 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[10px] rounded border border-gray-300 dark:border-gray-600 flex items-center gap-1" title="Notification suppressed (No active webhook linked)">
+                    <i class="bi bi-bell-slash"></i> Suppressed
+                   </span>` 
+                : '';
+
             if (s.graceEndTime !== null) {
                 const remainingMs = Math.max(0, s.graceEndTime - Date.now());
                 const remainingSec = (remainingMs / 1000).toFixed(1);
@@ -1419,13 +1440,23 @@
             } else {
                 statusHtml = `<span class="text-green-600 font-bold text-xs">Active ${formatDuration(el)}</span>`;
             }
-            return `<div class="px-3 py-2 flex justify-between items-center bg-white dark:bg-gray-800 border-b dark:border-gray-700 last:border-0"><div><strong>${s.item.name}</strong></div><small>${statusHtml}</small></div>`;
+
+            // Added 'flex items-center' to the name div to align the badge
+            return `<div class="px-3 py-2 flex justify-between items-center bg-white dark:bg-gray-800 border-b dark:border-gray-700 last:border-0">
+                        <div class="flex items-center">
+                            <strong>${s.item.name}</strong>
+                            ${suppressedBadge}
+                        </div>
+                        <small>${statusHtml}</small>
+                    </div>`;
         }).join('');
 
         if(moons.length > 0) { activeMoonsSection.classList.remove('hidden'); activeMoonsList.innerHTML = generateHTML(moons); } 
         else { activeMoonsSection.classList.add('hidden'); }
+        
         if(weathers.length > 0) { activeWeatherSection.classList.remove('hidden'); activeWeatherList.innerHTML = generateHTML(weathers); } 
         else { activeWeatherSection.classList.add('hidden'); }
+        
         cooldownTimerLog.textContent = `Active: ${list.length}`;
     }
 
