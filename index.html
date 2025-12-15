@@ -631,1184 +631,1230 @@
     <div class="fixed bottom-5 right-5 z-[70] flex flex-col gap-2 pointer-events-none toast-container"></div>
 
     <script>
-        // --- Global Variables ---
-        const logContentDiv = document.getElementById('logContent');
-        const cooldownsPlaceholder = document.getElementById('cooldownsPlaceholder');
-        const activeMoonsList = document.getElementById('activeMoonsList');
-        const activeWeatherList = document.getElementById('activeWeatherList');
-        const activeMoonsSection = document.getElementById('activeMoonsSection');
-        const activeWeatherSection = document.getElementById('activeWeatherSection');
-        const cooldownTimerLog = document.getElementById('cooldownTimerLog');
-        const rawCaptureContainer = document.getElementById('rawCaptureContainer');
-        const viewPlaceholder = document.getElementById('viewPlaceholder');
-        
-        // --- Input Elements ---
-        const regionXInput = document.getElementById('regionX');
-        const regionYInput = document.getElementById('regionY');
-        const regionWInput = document.getElementById('regionW');
-        const regionHInput = document.getElementById('regionH');
-        // Region 2 Inputs
-        const region2XInput = document.getElementById('region2X');
-        const region2YInput = document.getElementById('region2Y');
-        const region2WInput = document.getElementById('region2W');
-        const region2HInput = document.getElementById('region2H');
-        const region2Controls = document.getElementById('region2Controls');
+    // --- Global Variables ---
+    const logContentDiv = document.getElementById('logContent');
+    const cooldownsPlaceholder = document.getElementById('cooldownsPlaceholder');
+    const activeMoonsList = document.getElementById('activeMoonsList');
+    const activeWeatherList = document.getElementById('activeWeatherList');
+    const activeMoonsSection = document.getElementById('activeMoonsSection');
+    const activeWeatherSection = document.getElementById('activeWeatherSection');
+    const cooldownTimerLog = document.getElementById('cooldownTimerLog');
+    const rawCaptureContainer = document.getElementById('rawCaptureContainer');
+    const viewPlaceholder = document.getElementById('viewPlaceholder');
+    
+    // --- Input Elements ---
+    const regionXInput = document.getElementById('regionX');
+    const regionYInput = document.getElementById('regionY');
+    const regionWInput = document.getElementById('regionW');
+    const regionHInput = document.getElementById('regionH');
+    // Region 2 Inputs
+    const region2XInput = document.getElementById('region2X');
+    const region2YInput = document.getElementById('region2Y');
+    const region2WInput = document.getElementById('region2W');
+    const region2HInput = document.getElementById('region2H');
+    const region2Controls = document.getElementById('region2Controls');
 
-        const captureViewCanvas = document.getElementById('captureView');
-        const videoElement = document.getElementById('videoElement');
-        const processButton = document.getElementById('processButton');
-        const connectScreenButton = document.getElementById('connectScreenButton');
-        const canvasElement = document.getElementById('canvasElement');
-        const gracePeriodSecondsInput = document.getElementById('gracePeriodSeconds');
-        
-        // --- State Variables ---
-        let moonWeatherList = [];
-        let webhookList = [];
-        let ocrConfigs = [];
-        let currentConfigIndex = -1; 
-        let isRenamingConfig = false;
-        let activeItems = {}; 
-        let previewInterval = null;
-        let activeStatusInterval = null;
-        let eventSortOrder = 'desc'; 
-        let localStream = null;
-        let ocrRunning = false; 
+    const captureViewCanvas = document.getElementById('captureView');
+    const videoElement = document.getElementById('videoElement');
+    const processButton = document.getElementById('processButton');
+    const connectScreenButton = document.getElementById('connectScreenButton');
+    const canvasElement = document.getElementById('canvasElement');
+    const gracePeriodSecondsInput = document.getElementById('gracePeriodSeconds');
+    
+    // --- State Variables ---
+    let moonWeatherList = [];
+    let webhookList = [];
+    let ocrConfigs = [];
+    let currentConfigIndex = -1; 
+    let isRenamingConfig = false;
+    let activeItems = {}; 
+    let previewInterval = null;
+    let activeStatusInterval = null;
+    let eventSortOrder = 'desc'; 
+    let localStream = null;
+    let ocrRunning = false; 
 
-        // --- DUAL SMART ZOOM VARIABLES ---
-        let scanMode = 'uni'; // 'uni' or 'dual'
-        let zoom1 = 2; 
-        let lock1 = false;
-        let zoom2 = 2;
-        let lock2 = false;
-        let dragSelectionStep = 0; 
-        
-        // --- Webhook & Modal State ---
-        let currentEditingWebhookIndex = -1;
-        const webhookEventsModal = document.getElementById('webhookEventsModal');
-        const webhookEventsListContainer = document.getElementById('webhookEventsListContainer');
-        const webhookEventsSearchInput = document.getElementById('webhookEventsSearchInput');
-        const webhookEventsModalTitle = document.getElementById('webhookEventsModalTitle');
+    // --- DUAL SMART ZOOM VARIABLES ---
+    let scanMode = 'uni'; // 'uni' or 'dual'
+    let zoom1 = 2; 
+    let lock1 = false;
+    let zoom2 = 2;
+    let lock2 = false;
+    let dragSelectionStep = 0; 
+    
+    // --- OPTIMIZATION VARIABLES (NEW) ---
+    let scanCounter = 0;
+    const WORKER_REFRESH_RATE = 2000; // Restart worker every 2000 scans to clear WASM memory
+    
+    // --- Webhook & Modal State ---
+    let currentEditingWebhookIndex = -1;
+    const webhookEventsModal = document.getElementById('webhookEventsModal');
+    const webhookEventsListContainer = document.getElementById('webhookEventsListContainer');
+    const webhookEventsSearchInput = document.getElementById('webhookEventsSearchInput');
+    const webhookEventsModalTitle = document.getElementById('webhookEventsModalTitle');
 
-        let eventStatsChartInstance = null;
+    let eventStatsChartInstance = null;
 
-        // --- Tesseract Worker ---
-        let worker = null;
+    // --- Tesseract Worker ---
+    let worker = null;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('currentYear').textContent = new Date().getFullYear();
-            loadTheme();
-            cleanupLegacyHistory(); 
-            loadSettings();
-            document.getElementById('mainTab').classList.remove('hidden');
-        });
-        
-        function setTheme(theme) {
-            const html = document.documentElement;
-            const btnIcon = document.getElementById('themeIcon');
-            localStorage.setItem('theme', theme);
-            if(theme === 'dark') {
-                html.classList.add('dark'); html.classList.remove('light');
-                btnIcon.classList.remove('bi-sun-fill'); btnIcon.classList.add('bi-moon-stars-fill');
-            } else {
-                html.classList.remove('dark'); html.classList.add('light');
-                btnIcon.classList.remove('bi-moon-stars-fill'); btnIcon.classList.add('bi-sun-fill');
-            }
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+        loadTheme();
+        cleanupLegacyHistory(); 
+        loadSettings();
+        document.getElementById('mainTab').classList.remove('hidden');
+    });
+    
+    function setTheme(theme) {
+        const html = document.documentElement;
+        const btnIcon = document.getElementById('themeIcon');
+        localStorage.setItem('theme', theme);
+        if(theme === 'dark') {
+            html.classList.add('dark'); html.classList.remove('light');
+            btnIcon.classList.remove('bi-sun-fill'); btnIcon.classList.add('bi-moon-stars-fill');
+        } else {
+            html.classList.remove('dark'); html.classList.add('light');
+            btnIcon.classList.remove('bi-moon-stars-fill'); btnIcon.classList.add('bi-sun-fill');
         }
-        function toggleTheme() {
-            const html = document.documentElement;
-            setTheme(html.classList.contains('dark') ? 'light' : 'dark');
-        }
-        function loadTheme() { setTheme(localStorage.getItem('theme') || 'light'); }
+    }
+    function toggleTheme() {
+        const html = document.documentElement;
+        setTheme(html.classList.contains('dark') ? 'light' : 'dark');
+    }
+    function loadTheme() { setTheme(localStorage.getItem('theme') || 'light'); }
 
-        // --- Settings & Config ---
-        function loadSettings() {
-            try {
-                webhookList = JSON.parse(localStorage.getItem('webhookList')) || [];
-                moonWeatherList = JSON.parse(localStorage.getItem('moonWeatherList')) || [];
-                ocrConfigs = JSON.parse(localStorage.getItem('ocrConfigs')) || [];
-                
-                regionXInput.value = localStorage.getItem('regionX') || '0';
-                regionYInput.value = localStorage.getItem('regionY') || '0';
-                regionWInput.value = localStorage.getItem('regionW') || '300';
-                regionHInput.value = localStorage.getItem('regionH') || '50';
-                
-                region2XInput.value = localStorage.getItem('region2X') || '0';
-                region2YInput.value = localStorage.getItem('region2Y') || '0';
-                region2WInput.value = localStorage.getItem('region2W') || '300';
-                region2HInput.value = localStorage.getItem('region2H') || '50';
-                
-                scanMode = localStorage.getItem('scanMode') || 'uni';
-                if(document.getElementById('modeSingle')) {
-                    document.getElementById('modeSingle').checked = (scanMode === 'uni');
-                    document.getElementById('modeDual').checked = (scanMode === 'dual');
-                }
-                toggleScanMode(false); 
-
-                currentConfigIndex = parseInt(localStorage.getItem('currentConfigIndex') || '-1');
-                gracePeriodSecondsInput.value = localStorage.getItem('gracePeriodSeconds') || '5';
-                
-                const now = new Date();
-                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                
-                if(document.getElementById('eventDatePicker')) document.getElementById('eventDatePicker').value = today;
-                if(document.getElementById('statsDateStart')) document.getElementById('statsDateStart').value = today;
-                if(document.getElementById('statsDateEnd')) document.getElementById('statsDateEnd').value = today;
-
-                renderList();
-                renderWebhookList();
-                updateConfigDropdown();
-                updateSearchDatalist();
-                renderRecentEvents();
-                try { updateItemListDropdown(); } catch(e) {}
-                
-                if (!activeStatusInterval) activeStatusInterval = setInterval(renderActiveStatus, 500);
-                
-                addLog("System initialized.");
-            } catch (e) { console.error(e); }
-        }
-
-        function cleanupLegacyHistory() {
-            try {
-                const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
-                const keys = Object.keys(evs);
-                const now = new Date();
-                let deleted = 0;
-                
-                keys.forEach(dateStr => {
-                    const date = new Date(dateStr);
-                    const diffTime = Math.abs(now - date);
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                    if (diffDays > 30) {
-                        delete evs[dateStr];
-                        deleted++;
-                    }
-                });
-
-                if (deleted > 0) {
-                    localStorage.setItem('dailyEvents', JSON.stringify(evs));
-                    console.log(`Cleaned up ${deleted} days of old history.`);
-                }
-            } catch(e) { console.error("History cleanup failed", e); }
-        }
-
-        function saveSettings() {
-            localStorage.setItem('moonWeatherList', JSON.stringify(moonWeatherList));
-            localStorage.setItem('webhookList', JSON.stringify(webhookList));
-            localStorage.setItem('ocrConfigs', JSON.stringify(ocrConfigs));
-            localStorage.setItem('currentConfigIndex', currentConfigIndex);
-            localStorage.setItem('regionX', regionXInput.value);
-            localStorage.setItem('regionY', regionYInput.value);
-            localStorage.setItem('regionW', regionWInput.value);
-            localStorage.setItem('regionH', regionHInput.value);
-            localStorage.setItem('region2X', region2XInput.value);
-            localStorage.setItem('region2Y', region2YInput.value);
-            localStorage.setItem('region2W', region2WInput.value);
-            localStorage.setItem('region2H', region2HInput.value);
-            localStorage.setItem('scanMode', scanMode);
-            localStorage.setItem('gracePeriodSeconds', gracePeriodSecondsInput.value);
-        }
-
-        function removeSettings() {
-            if (confirm("Reset ALL settings?")) { localStorage.clear(); location.reload(); }
-        }
-
-        function toggleScanMode(save = true) {
-            const mode = document.querySelector('input[name="scanMode"]:checked').value;
-            scanMode = mode;
-            if (mode === 'dual') {
-                region2Controls.style.display = 'block';
-                document.getElementById('zoom2Status').style.display = 'block';
-                document.title = "FYP Event Notifier (Dual Scan)";
-            } else {
-                region2Controls.style.display = 'none';
-                document.getElementById('zoom2Status').style.display = 'none';
-                document.title = "FYP Event Notifier (Uni-Scan)";
-            }
-            if(save) {
-                saveSettings();
-                updatePreviewAndSize();
-            }
-        }
-
-        function updateConfigDropdown() {
-            const select = document.getElementById('configSelect');
-            select.innerHTML = '<option value="-1">-- Custom Preset --</option>';
-            ocrConfigs.forEach((c, i) => {
-                const opt = document.createElement('option');
-                opt.value = i; opt.textContent = c.name;
-                select.appendChild(opt);
-            });
-            select.value = currentConfigIndex;
-            const isCustom = (currentConfigIndex === -1);
-            const renameBtn = document.getElementById('menuRenameBtn');
-            const deleteBtn = document.getElementById('menuDeleteBtn');
-            if(renameBtn) renameBtn.disabled = isCustom;
-            if(deleteBtn) deleteBtn.disabled = isCustom;
-            const display = document.getElementById('configNameDisplay');
-            display.textContent = isCustom ? "Current: Custom" : `Current: ${ocrConfigs[currentConfigIndex].name}`;
-        }
-
-        function togglePresetMenu(e) {
-            if(e) e.stopPropagation();
-            document.getElementById('presetMenu').classList.toggle('hidden');
-        }
-        function hidePresetMenu() { document.getElementById('presetMenu').classList.add('hidden'); }
-        window.addEventListener('click', (e) => {
-            const menu = document.getElementById('presetMenu');
-            const btn = document.getElementById('presetMenuBtn');
-            if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !btn.contains(e.target)) hidePresetMenu();
-        });
-
-        function handleConfigSelect() {
-            const idx = parseInt(document.getElementById('configSelect').value);
-            currentConfigIndex = idx;
-            if (idx !== -1 && ocrConfigs[idx]) {
-                const c = ocrConfigs[idx];
-                regionXInput.value = c.x; regionYInput.value = c.y; regionWInput.value = c.w; regionHInput.value = c.h;
-                region2XInput.value = c.r2x || 0; region2YInput.value = c.r2y || 0; region2WInput.value = c.r2w || 300; region2HInput.value = c.r2h || 50;
-                scanMode = c.mode || 'uni';
+    // --- Settings & Config ---
+    function loadSettings() {
+        try {
+            webhookList = JSON.parse(localStorage.getItem('webhookList')) || [];
+            moonWeatherList = JSON.parse(localStorage.getItem('moonWeatherList')) || [];
+            ocrConfigs = JSON.parse(localStorage.getItem('ocrConfigs')) || [];
+            
+            regionXInput.value = localStorage.getItem('regionX') || '0';
+            regionYInput.value = localStorage.getItem('regionY') || '0';
+            regionWInput.value = localStorage.getItem('regionW') || '300';
+            regionHInput.value = localStorage.getItem('regionH') || '50';
+            
+            region2XInput.value = localStorage.getItem('region2X') || '0';
+            region2YInput.value = localStorage.getItem('region2Y') || '0';
+            region2WInput.value = localStorage.getItem('region2W') || '300';
+            region2HInput.value = localStorage.getItem('region2H') || '50';
+            
+            scanMode = localStorage.getItem('scanMode') || 'uni';
+            if(document.getElementById('modeSingle')) {
                 document.getElementById('modeSingle').checked = (scanMode === 'uni');
                 document.getElementById('modeDual').checked = (scanMode === 'dual');
-                toggleScanMode(false);
-                showToast(`Loaded "${c.name}"`);
-                saveSettings(); updatePreviewAndSize();
             }
+            toggleScanMode(false); 
+
+            currentConfigIndex = parseInt(localStorage.getItem('currentConfigIndex') || '-1');
+            gracePeriodSecondsInput.value = localStorage.getItem('gracePeriodSeconds') || '5';
+            
+            const now = new Date();
+            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            
+            if(document.getElementById('eventDatePicker')) document.getElementById('eventDatePicker').value = today;
+            if(document.getElementById('statsDateStart')) document.getElementById('statsDateStart').value = today;
+            if(document.getElementById('statsDateEnd')) document.getElementById('statsDateEnd').value = today;
+
+            renderList();
+            renderWebhookList();
             updateConfigDropdown();
-        }
-
-        function handleSaveButton() {
-            if (currentConfigIndex !== -1) {
-                const c = ocrConfigs[currentConfigIndex];
-                c.x = parseInt(regionXInput.value); c.y = parseInt(regionYInput.value); c.w = parseInt(regionWInput.value); c.h = parseInt(regionHInput.value);
-                c.r2x = parseInt(region2XInput.value); c.r2y = parseInt(region2YInput.value); c.r2w = parseInt(region2WInput.value); c.r2h = parseInt(region2HInput.value);
-                c.mode = scanMode;
-                saveSettings(); showToast(`Coordinates updated for "${c.name}"`);
-            } else { openConfigModal(); }
-        }
-
-        function saveAsNewConfig() {
-            openConfigModal();
-            if (currentConfigIndex !== -1 && ocrConfigs[currentConfigIndex]) document.getElementById('configName').value = ocrConfigs[currentConfigIndex].name + " (Copy)";
-        }
-        function hideConfigModal() {
-            document.getElementById('configModal').classList.add('hidden');
-            document.getElementById('configModal').classList.remove('flex');
-        }
-        function openConfigModal() {
-            isRenamingConfig = false;
-            document.getElementById('configName').value = "";
-            document.getElementById('configModalTitle').textContent = "Save New Preset";
-            const modal = document.getElementById('configModal');
-            modal.classList.remove('hidden'); modal.classList.add('flex');
-            document.getElementById('configName').focus();
-        }
-        function renameCurrentConfig() {
-            if (currentConfigIndex === -1) return;
-            isRenamingConfig = true;
-            document.getElementById('configName').value = ocrConfigs[currentConfigIndex].name;
-            document.getElementById('configModalTitle').textContent = "Rename Preset";
-            const modal = document.getElementById('configModal');
-            modal.classList.remove('hidden'); modal.classList.add('flex');
-            document.getElementById('configName').focus();
-        }
-
-        document.getElementById('saveConfigForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            const name = document.getElementById('configName').value.trim();
-            if(!name) return;
-            if (isRenamingConfig && currentConfigIndex !== -1) {
-                ocrConfigs[currentConfigIndex].name = name;
-                showToast(`Preset renamed to "${name}".`);
-            } else {
-                const newC = {
-                    name, 
-                    x: parseInt(regionXInput.value), y: parseInt(regionYInput.value), w: parseInt(regionWInput.value), h: parseInt(regionHInput.value),
-                    r2x: parseInt(region2XInput.value), r2y: parseInt(region2YInput.value), r2w: parseInt(region2WInput.value), r2h: parseInt(region2HInput.value),
-                    mode: scanMode
-                };
-                ocrConfigs.push(newC);
-                currentConfigIndex = ocrConfigs.length - 1;
-                showToast(`Preset "${name}" saved.`);
-            }
-            saveSettings(); updateConfigDropdown(); hideConfigModal(); isRenamingConfig = false;
-        });
-
-        function deleteCurrentConfig() {
-            if(currentConfigIndex !== -1 && confirm("Delete preset?")) {
-                const name = ocrConfigs[currentConfigIndex].name;
-                ocrConfigs.splice(currentConfigIndex, 1);
-                currentConfigIndex = -1;
-                saveSettings(); updateConfigDropdown();
-                showToast(`Preset "${name}" deleted.`);
-            }
-        }
-        function resetToNewCustomConfig() {
-            currentConfigIndex = -1; scanMode = 'uni'; document.getElementById('modeSingle').checked = true; toggleScanMode();
-            regionXInput.value = 0; regionYInput.value = 0; regionWInput.value = 300; regionHInput.value = 50;
-            updateConfigDropdown(); saveSettings(); updatePreviewAndSize(); showToast("Reset to defaults.");
-        }
-        function exportPresets() {
-            if (ocrConfigs.length === 0) { showToast("No presets to export.", "error"); return; }
-            const blob = new Blob([JSON.stringify(ocrConfigs, null, 2)], {type: "application/json"});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fyp_presets.json';
-            document.body.appendChild(a); a.click(); document.body.removeChild(a); showToast("Presets exported.");
-        }
-        function importPresets(inputElement) {
-            const file = inputElement.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    if (Array.isArray(imported)) {
-                        let count = 0;
-                        imported.forEach(imp => {
-                            if (imp.name && imp.w > 0 && !ocrConfigs.find(c => c.name === imp.name)) {
-                                ocrConfigs.push(imp); count++;
-                            }
-                        });
-                        if (count > 0) { saveSettings(); updateConfigDropdown(); showToast(`Imported ${count} new presets.`); }
-                        else { showToast("No new unique presets found.", "info"); }
-                    } else { showToast("Invalid file format.", "error"); }
-                } catch (err) { showToast("Error parsing JSON file.", "error"); }
-                inputElement.value = '';
-            };
-            reader.readAsText(file);
-        }
-        
-        // --- Screen Capture ---
-        async function connectScreen() {
-            if (localStream && localStream.active) { stopStream(); return; }
-            if (!navigator.mediaDevices) return;
-            connectScreenButton.disabled = true;
-            try {
-                const stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false });
-                localStream = stream;
-                videoElement.srcObject = stream;
-                videoElement.onloadedmetadata = () => {
-                    videoElement.play();
-                    connectScreenButton.innerHTML = '<i class="bi bi-display"></i> Connected (Stop)';
-                    connectScreenButton.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'text-white');
-                    connectScreenButton.classList.add('border', 'border-blue-500', 'text-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-gray-700');
-                    connectScreenButton.disabled = false;
-                    processButton.disabled = false;
-                    
-                    if(previewInterval) clearInterval(previewInterval);
-                    previewInterval = setInterval(drawLivePreview, 100);
-                    
-                    rawCaptureContainer.style.display = 'flex';
-                    viewPlaceholder.style.display = 'none';
-                    addLog("Screen connected.");
-                    showToast("Screen Source Connected.");
-                };
-                stream.getVideoTracks()[0].onended = stopStream;
-            } catch (err) { console.error(err); connectScreenButton.disabled = false; }
-        }
-
-        function stopStream() {
-            if(localStream) localStream.getTracks().forEach(t => t.stop());
-            localStream = null;
-            videoElement.srcObject = null;
-            if(ocrRunning) toggleProcess(true);
-            connectScreenButton.innerHTML = '<i class="bi bi-display"></i> Connect';
-            connectScreenButton.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white');
-            connectScreenButton.classList.remove('border', 'border-blue-500', 'text-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-gray-700');
-            connectScreenButton.disabled = false;
-            processButton.disabled = true;
-            rawCaptureContainer.style.display = 'none';
-            viewPlaceholder.style.display = 'block';
-            if(previewInterval) clearInterval(previewInterval);
-            addLog("Screen Disconnected.");
-            showToast("Screen Source Disconnected.");
-        }
-
-        // --- Live Preview ---
-        function drawLivePreview() {
-            if (videoElement.readyState < videoElement.HAVE_ENOUGH_DATA) return;
-            const r1 = { x: parseInt(regionXInput.value)||0, y: parseInt(regionYInput.value)||0, w: parseInt(regionWInput.value)||300, h: parseInt(regionHInput.value)||50 };
+            updateSearchDatalist();
+            renderRecentEvents();
+            try { updateItemListDropdown(); } catch(e) {}
             
-            if (scanMode === 'dual') {
-                const r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
-                const maxWidth = Math.max(r1.w, r2.w);
-                const totalHeight = r1.h + r2.h + 2; 
-                
-                if(captureViewCanvas.width !== maxWidth || captureViewCanvas.height !== totalHeight) {
-                    captureViewCanvas.width = maxWidth; captureViewCanvas.height = totalHeight;
-                }
-                const ctx = captureViewCanvas.getContext('2d', { willReadFrequently: true });
-                ctx.fillStyle = '#222'; ctx.fillRect(0, 0, maxWidth, totalHeight);
-                ctx.drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, r1.w, r1.h);
-                ctx.fillStyle = '#06b6d4'; ctx.fillRect(0, r1.h, maxWidth, 2);
-                ctx.drawImage(videoElement, r2.x, r2.y, r2.w, r2.h, 0, r1.h + 2, r2.w, r2.h);
-            } else {
-                if(captureViewCanvas.width !== r1.w || captureViewCanvas.height !== r1.h) {
-                    captureViewCanvas.width = r1.w; captureViewCanvas.height = r1.h;
-                }
-                captureViewCanvas.getContext('2d', { willReadFrequently: true }).drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, r1.w, r1.h);
-            }
-        }
-        function updatePreviewAndSize() { drawLivePreview(); }
-
-        // --- OCR Logic (FIXED SCOPING & RELAXED) ---
-        
-        async function initTesseract() {
-            try {
-                if (worker) return true;
-                
-                worker = await Tesseract.createWorker('eng', 1, {
-                    logger: m => console.log(m) 
-                });
-                
-                // Use integer '6' (Uniform Block) or '3' (Auto). '6' is best for single blocks of text.
-                await worker.setParameters({ 
-                    tessedit_pageseg_mode: 6, 
-                    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/.,%- ' 
-                });
-                
-                return true;
-            } catch (e) {
-                console.error("Tesseract Init Failed:", e);
-                showToast("OCR Init Failed (Check Console)", "error");
-                addLog(`Error: ${e.message}`);
-                return false;
-            }
-        }
-
-        async function toggleProcess(forceStop = false) {
-            if (ocrRunning) {
-                // --- STOP LOGIC ---
-                const activeKeys = Object.keys(activeItems);
-                if (!forceStop && activeKeys.length > 0) {
-                    if (!confirm(`⚠️ ${activeKeys.length} event(s) are currently active.\n\nStopping will mark them as ENDED and send final notifications.\n\nContinue?`)) return;
-                }
-                
-                activeKeys.forEach(key => {
-                    const state = activeItems[key];
-                    if (state) {
-                        const duration = Date.now() - state.start;
-                        addLog(`**[STOPPED]** ${state.item.name} ended (OCR Stopped).`);
-                        addRecentEvent(state.item, duration, state.start);
-                        sendDiscordNotification(state.item, "end", duration);
-                    }
-                });
-
-                ocrRunning = false;
-                activeItems = {}; 
-                renderActiveStatus();
-                
-                // Terminate Worker
-                if (worker) {
-                    await worker.terminate();
-                    worker = null;
-                    addLog("Worker memory cleared.");
-                }
-
-                processButton.innerHTML = '<i class="bi bi-play-circle"></i> Start OCR';
-                processButton.classList.replace('bg-red-600', 'bg-green-600');
-                processButton.classList.replace('hover:bg-red-700', 'hover:bg-green-700');
-                addLog("OCR stopped.");
-                showToast("OCR Stopped.");
-                
-                document.getElementById('zoom1Status').textContent = "R1: Idle";
-                document.getElementById('zoom2Status').textContent = "R2: Idle";
-            } else {
-                // --- START LOGIC ---
-                const activeWebhooks = webhookList.filter(w => w.active);
-                if (activeWebhooks.length === 0) { showToast("No active webhooks selected!", "error"); return; }
-
-                const hasLinkedEvents = moonWeatherList.some(item => item.webhookIds && item.webhookIds.some(id => activeWebhooks.find(aw => aw.id === id)));
-
-                if (moonWeatherList.length === 0) { alert("⚠️ No events configured.\n\nYou must add at least one event to proceed."); return; }
-                else if (!hasLinkedEvents) { alert("⚠️ Active webhooks found, but no events are subscribed to them."); return; }
-                
-                processButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Init...';
-                processButton.disabled = true;
-
-                worker = null; 
-                const ready = await initTesseract();
-                processButton.disabled = false;
-
-                if (!ready) { processButton.innerHTML = '<i class="bi bi-play-circle"></i> Start OCR'; return; }
-                
-                lock1 = false; zoom1 = 2; lock2 = false; zoom2 = 2; 
-                
-                processButton.innerHTML = '<i class="bi bi-stop-circle"></i> Stop OCR';
-                processButton.classList.replace('bg-green-600', 'bg-red-600');
-                processButton.classList.replace('hover:bg-green-700', 'hover:bg-red-700');
-                addLog("OCR started.");
-                showToast("OCR Started.");
-                
-                ocrRunning = true;
-                activeMoonsList.innerHTML = ''; activeWeatherList.innerHTML = '';
-                cooldownsPlaceholder.style.display = 'block';
-                activeMoonsSection.classList.add('hidden'); activeWeatherSection.classList.add('hidden');
-                
-                scheduleNextScan();
-            }
-        }
-
-        function scheduleNextScan() {
-            if (!ocrRunning) return;
-            setTimeout(scanCameraImage, 250);
-        }
-
-        let noTextCounterR1 = 0; 
-        let noTextCounterR2 = 0;
-
-        async function scanCameraImage() {
-            if (!ocrRunning || !videoElement || videoElement.readyState < videoElement.HAVE_ENOUGH_DATA) {
-                scheduleNextScan();
-                return;
-            }
-
-            if (!worker) {
-                 addLog("Error: Worker lost. Restarting...");
-                 toggleProcess(true);
-                 return;
-            }
-
-            try {
-                const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
-                const r1 = { x: parseInt(regionXInput.value)||0, y: parseInt(regionYInput.value)||0, w: parseInt(regionWInput.value)||300, h: parseInt(regionHInput.value)||50 };
-                
-                // FIXED: Defined r2 here in function scope
-                let r2 = { x: 0, y: 0, w: 0, h: 0 }; 
-
-                let w1 = r1.w * zoom1;
-                let h1 = r1.h * zoom1;
-                let w2 = 0, h2 = 0;
-                let boundaryY = h1;
-
-                if (scanMode === 'dual') {
-                    // Update r2 if active
-                    r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
-                    w2 = r2.w * zoom2; h2 = r2.h * zoom2;
-                    boundaryY = h1;
-                }
-
-                const finalW = Math.max(w1, w2);
-                const finalH = h1 + h2;
-
-                if (canvasElement.width !== finalW || canvasElement.height !== finalH) {
-                    canvasElement.width = finalW; canvasElement.height = finalH;
-                }
-
-                ctx.filter = 'grayscale(100%)'; 
-                
-                ctx.drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, w1, h1);
-                
-                // Now r2 is visible here because it was defined at the top
-                if (scanMode === 'dual') ctx.drawImage(videoElement, r2.x, r2.y, r2.w, r2.h, 0, h1, w2, h2);
-
-                const { data } = await worker.recognize(canvasElement);
-                
-                if (!ocrRunning) return;
-
-                if(data.text && data.text.trim().length > 0) {
-                     console.log("Raw OCR Read:", data.text.trim().replace(/\n/g, ' '));
-                }
-
-                let foundR1 = false; let foundR2 = false;
-                let r1HasAnyText = false; let r2HasAnyText = false;
-                const normalize = (text) => text.toLowerCase().replace(/\s+/g, '');
-                const fullText = normalize(data.text);
-                const words = data.words || [];
-
-                words.forEach(w => {
-                    if (w.confidence > 40) {
-                        const y = w.bbox.y0;
-                        if (scanMode === 'dual' && y >= boundaryY) r2HasAnyText = true;
-                        else r1HasAnyText = true;
-                    }
-                });
-
-                const currentMatches = new Map();
-                moonWeatherList.forEach(item => {
-                    const normName = normalize(item.name);
-                    if (fullText.includes(normName)) {
-                        let region = 1;
-                        const matchWord = words.find(w => normalize(w.text).includes(normName) || normName.includes(normalize(w.text)));
-                        if (matchWord && scanMode === 'dual' && matchWord.bbox.y0 >= boundaryY) region = 2;
-                        
-                        currentMatches.set(item.name, { item, region });
-                        if (region === 1) foundR1 = true;
-                        if (region === 2) foundR2 = true;
-                    }
-                });
-
-                currentMatches.forEach((matchData, name) => {
-                    const { item, region } = matchData;
-                    if (activeItems[name]) {
-                        activeItems[name].graceEndTime = null; 
-                    } else {
-                        addLog(`**[START]** ${name} (R${region})`);
-                        activeItems[name] = { item, start: Date.now(), graceEndTime: null };
-                        sendDiscordNotification(item, "start");
-                        renderActiveStatus();
-                    }
-                });
-
-                Object.keys(activeItems).forEach(name => {
-                    if (!currentMatches.has(name)) {
-                        const state = activeItems[name];
-                        if (state.graceEndTime === null) {
-                            const graceSec = parseInt(gracePeriodSecondsInput.value) || 5;
-                            state.graceEndTime = Date.now() + (graceSec * 1000);
-                        }
-                    }
-                });
-
-                if (foundR1) { lock1 = true; noTextCounterR1 = 0; }
-                else if (r1HasAnyText) { 
-                    lock1 = false; 
-                    noTextCounterR1 = 0; 
-                    if (zoom1 < 2.5) zoom1 += 0.5; 
-                }
-                else { 
-                    noTextCounterR1++; 
-                    if (noTextCounterR1 > 3) { 
-                        lock1 = false; 
-                        zoom1 = 1; 
-                    } 
-                }
-
-                if (scanMode === 'dual') {
-                    if (foundR2) { lock2 = true; noTextCounterR2 = 0; }
-                    else if (r2HasAnyText) { 
-                        lock2 = false; 
-                        noTextCounterR2 = 0; 
-                        if (zoom2 < 2.5) zoom2 += 0.5; 
-                    }
-                    else { 
-                        noTextCounterR2++; 
-                        if (noTextCounterR2 > 3) { 
-                            lock2 = false; 
-                            zoom2 = 1; 
-                        } 
-                    }
-                }
-
-                requestAnimationFrame(() => {
-                    document.getElementById('zoom1Status').innerHTML = `R1: ${zoom1}x ${lock1 ? '<i class="bi bi-lock-fill text-green-400"></i>' : ''}`;
-                    if (scanMode === 'dual') document.getElementById('zoom2Status').innerHTML = `R2: ${zoom2}x ${lock2 ? '<i class="bi bi-lock-fill text-green-400"></i>' : ''}`;
-                });
-
-            } catch (err) {
-                console.error("Scan Error", err);
-            } finally {
-                scheduleNextScan(); 
-            }
-        }
-
-        // --- Drag & Select ---
-        const regionSelectionModal = document.getElementById('regionSelectionModal');
-        const selectionCanvas = document.getElementById('selectionCanvas');
-        let selectionCtx = null, isDragging = false, startX=0, startY=0, endX=0, endY=0, animId=null;
-
-        function startRegionSelection() {
-            if (!localStream) { showToast("Connect screen first!", "error"); return; }
-            dragSelectionStep = 1;
-            const title = document.getElementById('regionSelectionTitle');
-            if (scanMode === 'dual') title.innerHTML = `<i class="bi bi-1-square"></i> Select Region 1 (Top)`;
-            else title.innerHTML = `<i class="bi bi-mouse"></i> Drag to select area`;
-            selectionCanvas.width = videoElement.videoWidth; selectionCanvas.height = videoElement.videoHeight;
-            selectionCtx = selectionCanvas.getContext('2d');
-            regionSelectionModal.classList.remove('hidden'); regionSelectionModal.classList.add('flex');
-            animId = requestAnimationFrame(renderSelectionLoop);
-        }
-
-        function renderSelectionLoop() {
-            if (regionSelectionModal.classList.contains('hidden')) return;
-            selectionCtx.drawImage(videoElement, 0, 0, selectionCanvas.width, selectionCanvas.height);
-            const w = endX - startX; const h = endY - startY;
-            if (w !== 0 && h !== 0) {
-                selectionCtx.strokeStyle = 'red'; selectionCtx.lineWidth = 3; selectionCtx.strokeRect(startX, startY, w, h);
-                selectionCtx.fillStyle = 'rgba(255, 0, 0, 0.2)'; selectionCtx.fillRect(startX, startY, w, h);
-            }
-            animId = requestAnimationFrame(renderSelectionLoop);
-        }
-        function closeRegionSelection() {
-            cancelAnimationFrame(animId);
-            regionSelectionModal.classList.add('hidden'); regionSelectionModal.classList.remove('flex');
-            dragSelectionStep = 0;
-        }
-        function confirmRegionSelection() {
-            let x = Math.min(startX, endX), y = Math.min(startY, endY), w = Math.abs(endX - startX), h = Math.abs(endY - startY);
-            if (w < 10 || h < 10) { showToast("Too small!", "error"); return; }
-            if (dragSelectionStep === 1) {
-                regionXInput.value = Math.round(x); regionYInput.value = Math.round(y); regionWInput.value = Math.round(w); regionHInput.value = Math.round(h);
-                if (scanMode === 'dual') {
-                    dragSelectionStep = 2;
-                    document.getElementById('regionSelectionTitle').innerHTML = `<i class="bi bi-2-square"></i> Select Region 2 (Bottom)`;
-                    startX=0; startY=0; endX=0; endY=0;
-                    showToast("Region 1 set. Now select Region 2.");
-                } else { updatePreviewAndSize(); saveSettings(); closeRegionSelection(); showToast("Region set!"); }
-            } else if (dragSelectionStep === 2) {
-                region2XInput.value = Math.round(x); region2YInput.value = Math.round(y); region2WInput.value = Math.round(w); region2HInput.value = Math.round(h);
-                updatePreviewAndSize(); saveSettings(); closeRegionSelection(); showToast("Dual Regions set!");
-            }
-        }
-        selectionCanvas.addEventListener('mousedown', e => { isDragging=true; const r=selectionCanvas.getBoundingClientRect(); const sx=selectionCanvas.width/r.width; const sy=selectionCanvas.height/r.height; startX=(e.clientX-r.left)*sx; startY=(e.clientY-r.top)*sy; endX=startX; endY=startY; });
-        selectionCanvas.addEventListener('mousemove', e => { if(!isDragging)return; const r=selectionCanvas.getBoundingClientRect(); const sx=selectionCanvas.width/r.width; const sy=selectionCanvas.height/r.height; endX=(e.clientX-r.left)*sx; endY=(e.clientY-r.top)*sy; });
-        selectionCanvas.addEventListener('mouseup', () => isDragging=false);
-
-        // --- Helpers ---
-        function renderActiveStatus() {
-            const now = Date.now();
-            const keysToRemove = [];
-            Object.keys(activeItems).forEach(key => {
-                const state = activeItems[key];
-                if (state.graceEndTime !== null) {
-                    const remaining = state.graceEndTime - now;
-                    if (remaining <= 0) {
-                        keysToRemove.push(key);
-                        const graceDuration = (parseInt(gracePeriodSecondsInput.value)||5) * 1000;
-                        const activeEndTime = state.graceEndTime - graceDuration;
-                        const duration = activeEndTime - state.start;
-                        addLog(`**[END]** ${state.item.name}`);
-                        addRecentEvent(state.item, duration, state.start);
-                        sendDiscordNotification(state.item, "end", duration);
-                    }
-                }
-            });
-            keysToRemove.forEach(k => delete activeItems[k]);
-
-            const list = Object.values(activeItems);
-            if(list.length === 0) { 
-                cooldownsPlaceholder.style.display='block'; 
-                activeMoonsSection.classList.add('hidden'); activeWeatherSection.classList.add('hidden');
-                cooldownTimerLog.textContent = ocrRunning ? "Scanning..." : "Idle"; return; 
-            }
-            cooldownsPlaceholder.style.display='none';
+            if (!activeStatusInterval) activeStatusInterval = setInterval(renderActiveStatus, 500);
             
-            const moons = list.filter(s => s.item.type === 'Moon');
-            const weathers = list.filter(s => s.item.type === 'Weather');
+            addLog("System initialized.");
+        } catch (e) { console.error(e); }
+    }
+
+    function cleanupLegacyHistory() {
+        try {
+            const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
+            const keys = Object.keys(evs);
+            const now = new Date();
+            let deleted = 0;
             
-            const generateHTML = (items) => items.map(s => {
-                const el = Date.now() - s.start;
-                let statusHtml = "";
-                if (s.graceEndTime !== null) {
-                    const remainingMs = Math.max(0, s.graceEndTime - Date.now());
-                    const remainingSec = (remainingMs / 1000).toFixed(1);
-                    statusHtml = `<span class="text-red-500 font-bold animate-pulse text-xs">Ending in ${remainingSec}s</span>`;
-                } else {
-                    statusHtml = `<span class="text-green-600 font-bold text-xs">Active ${formatDuration(el)}</span>`;
-                }
-                return `<div class="px-3 py-2 flex justify-between items-center bg-white dark:bg-gray-800 border-b dark:border-gray-700 last:border-0"><div><strong>${s.item.name}</strong></div><small>${statusHtml}</small></div>`;
-            }).join('');
-
-            if(moons.length > 0) { activeMoonsSection.classList.remove('hidden'); activeMoonsList.innerHTML = generateHTML(moons); } 
-            else { activeMoonsSection.classList.add('hidden'); }
-            if(weathers.length > 0) { activeWeatherSection.classList.remove('hidden'); activeWeatherList.innerHTML = generateHTML(weathers); } 
-            else { activeWeatherSection.classList.add('hidden'); }
-            cooldownTimerLog.textContent = `Active: ${list.length}`;
-        }
-
-        function addLog(msg) { logContentDiv.innerHTML = `<span class="text-gray-400">[${new Date().toLocaleTimeString()}]</span> ${msg}<br>` + logContentDiv.innerHTML; }
-        function clearLogs() { logContentDiv.innerHTML = ""; addLog("Logs cleared."); };
-        
-        function showToast(msg, type='success') {
-            const t = document.createElement('div'); 
-            const borderClass = type === 'success' ? 'border-green-500' : (type === 'error' ? 'border-red-500' : 'border-blue-500');
-            t.className = `bg-gray-800 text-white px-5 py-3 rounded shadow-lg flex items-center gap-3 animate-slideInToast min-w-[280px] border-l-4 ${borderClass}`;
-            t.innerHTML = `<span>${msg}</span>`;
-            document.querySelector('.toast-container').appendChild(t); 
-            setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(10px)'; setTimeout(() => t.remove(), 300); }, 3000);
-        }
-        
-        function formatChanceToPercent(input) {
-            if (!input) return '';
-            let clean = input.toString().toLowerCase().replace(/,/g, '');
-            if(clean.includes('/')) {
-                let [numStr, denStr] = clean.split('/');
-                let num = parseFloat(numStr);
-                let den = parseFloat(denStr);
-                if(denStr.includes('k')) den = parseFloat(denStr.replace('k', '')) * 1000;
-                if (!isNaN(num) && !isNaN(den) && den !== 0) return parseFloat(((num / den) * 100).toFixed(5)) + '%';
-            }
-            return input;
-        }
-        function formatDuration(ms) {
-            const sec = Math.floor(ms / 1000); const m = Math.floor(sec / 60); const s = sec % 60;
-            if (m > 0) return `${m}m ${s}s`; return `${s}s`;
-        }
-        
-        // --- Webhook & Event Lists Logic ---
-        function renderList() {
-            moonWeatherList.sort((a,b)=>b.multiplier-a.multiplier);
-            const moons=moonWeatherList.filter(i=>i.type==='Moon'), weathers=moonWeatherList.filter(i=>i.type==='Weather');
-            const gen = (l) => l.length ? l.map((i,idx)=> {
-                const originalIndex = moonWeatherList.indexOf(i);
-                const pct = formatChanceToPercent(i.chances);
-                return `
-                <div class="slide-reveal-wrapper group border-b border-gray-100 dark:border-gray-700 last:border-0">
-                    <div class="bg-white dark:bg-gray-800 p-3 flex justify-between items-center relative z-10 transition-transform">
-                        <div>
-                            <strong>${i.name}</strong> 
-                            <span class="bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded text-xs ml-1">${i.multiplier}x</span>
-                            ${pct ? `<span class="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100 px-1.5 py-0.5 rounded text-xs ml-1">${pct}</span>` : ''}
-                        </div>
-                        <i class="bi bi-chevron-left text-gray-300"></i>
-                    </div>
-                    <div class="slide-reveal-action">
-                        <div class="w-1/2 flex items-center justify-center bg-gray-500 hover:bg-gray-600 text-white cursor-pointer" onclick="showItemModal(${originalIndex})">
-                            <i class="bi bi-pencil"></i>
-                        </div>
-                        <div class="w-1/2 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white cursor-pointer" onclick="removeItem(${originalIndex})">
-                            <i class="bi bi-trash"></i>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('') : '<p class="text-gray-400 text-xs text-center p-4">None.</p>';
-            document.getElementById('moonListContainer').innerHTML=gen(moons);
-            document.getElementById('weatherListContainer').innerHTML=gen(weathers);
-            document.getElementById('modalMoonPreview').innerHTML = moons.map(i=>`<div class="px-2 py-1 border-b dark:border-gray-700 text-xs">${i.name}</div>`).join('') || '<p class="text-xs text-gray-500">None</p>';
-            document.getElementById('modalWeatherPreview').innerHTML = weathers.map(i=>`<div class="px-2 py-1 border-b dark:border-gray-700 text-xs">${i.name}</div>`).join('') || '<p class="text-xs text-gray-500">None</p>';
-            updateItemListDropdown();
-        }
-
-        function renderWebhookList() {
-            const c = document.getElementById('webhookListContainer');
-            if(!webhookList.length) { c.innerHTML='<p class="text-gray-400 text-sm text-center">No webhooks configured.</p>'; return; }
-            const totalMoons = moonWeatherList.filter(i => i.type === 'Moon').length;
-            const totalWeathers = moonWeatherList.filter(i => i.type === 'Weather').length;
-            const activeWebhooks = webhookList.map((w, i) => ({...w, originalIndex: i})).filter(w => w.active);
-            const inactiveWebhooks = webhookList.map((w, i) => ({...w, originalIndex: i})).filter(w => !w.active);
-            const renderItem = (w) => {
-                const moonSubs = moonWeatherList.filter(i => i.type === 'Moon' && (i.webhookIds || []).includes(w.id)).length;
-                const weatherSubs = moonWeatherList.filter(i => i.type === 'Weather' && (i.webhookIds || []).includes(w.id)).length;
-                const moonChecked = (totalMoons > 0 && moonSubs === totalMoons) ? 'checked' : '';
-                const weatherChecked = (totalWeathers > 0 && weatherSubs === totalWeathers) ? 'checked' : '';
-                return `
-                <div class="border border-gray-200 dark:border-gray-700 rounded p-3 mb-2 bg-white dark:bg-gray-800">
-                    <div class="flex justify-between items-center mb-2">
-                        <div class="overflow-hidden mr-2 flex-grow">
-                            <div class="flex items-center gap-2"><strong class="truncate text-sm">${w.description}</strong></div>
-                            <small class="text-gray-500 block truncate text-xs">${w.url}</small>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <label class="relative inline-flex items-center cursor-pointer" title="Enable/Disable">
-                                <input type="checkbox" class="sr-only peer" ${w.active ? 'checked' : ''} onchange="toggleWb(${w.originalIndex})">
-                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                            </label>
-                            <button onclick="showWebhookModal(${w.originalIndex})" class="p-1 text-gray-500 hover:text-blue-500" title="Edit Webhook"><i class="bi bi-pencil"></i></button>
-                            <button onclick="removeWebhook(${w.originalIndex})" class="p-1 text-gray-500 hover:text-red-500" title="Delete Webhook"><i class="bi bi-trash"></i></button>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <small class="text-gray-500 font-bold text-xs">Notify For:</small>
-                        <div class="flex items-center"><input type="checkbox" id="wb-moon-${w.id}" class="mr-1" ${moonChecked} onchange="toggleWebhookSubscription(${w.id}, 'Moon')"><label class="text-xs cursor-pointer text-blue-600 font-medium" for="wb-moon-${w.id}"><i class="bi bi-moon-stars"></i> Moons (${moonSubs}/${totalMoons})</label></div>
-                        <div class="flex items-center"><input type="checkbox" id="wb-weather-${w.id}" class="mr-1" ${weatherChecked} onchange="toggleWebhookSubscription(${w.id}, 'Weather')"><label class="text-xs cursor-pointer text-yellow-600 font-medium" for="wb-weather-${w.id}"><i class="bi bi-cloud-haze"></i> Weathers (${weatherSubs}/${totalWeathers})</label></div>
-                        <div class="ml-auto"><button class="text-xs px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700" onclick="showWebhookEventsModal(${w.originalIndex})" title="Select Specific Events"><i class="bi bi-list-check"></i> Select</button></div>
-                    </div>
-                </div>
-                <script>(function(){const m=document.getElementById('wb-moon-${w.id}');if(m)m.indeterminate=${moonSubs>0&&moonSubs<totalMoons};const w=document.getElementById('wb-weather-${w.id}');if(w)w.indeterminate=${weatherSubs>0&&weatherSubs<totalWeathers};})();<\/script>`;
-            };
-            let html = '';
-            if(activeWebhooks.length > 0) html += `<h6 class="text-green-600 text-xs font-bold mb-2">Active Webhooks</h6>` + activeWebhooks.map(renderItem).join('');
-            if(inactiveWebhooks.length > 0) html += `<h6 class="text-gray-500 text-xs font-bold mb-2 mt-4">Inactive Webhooks</h6>` + inactiveWebhooks.map(renderItem).join('');
-            c.innerHTML = html;
-        };
-
-        function toggleWebhookSubscription(webhookId, type) {
-            const targetItems = moonWeatherList.filter(i => i.type === type);
-            if (targetItems.length === 0) { showToast(`No ${type}s to assign.`, 'info'); return; }
-            const allSubscribed = targetItems.every(i => (i.webhookIds || []).includes(webhookId));
-            targetItems.forEach(item => {
-                if (!item.webhookIds) item.webhookIds = [];
-                if (allSubscribed) item.webhookIds = item.webhookIds.filter(id => id !== webhookId);
-                else if (!item.webhookIds.includes(webhookId)) item.webhookIds.push(webhookId);
-            });
-            saveSettings(); renderList(); renderWebhookList(); showToast(`${allSubscribed ? "Unsubscribed from" : "Subscribed to"} all ${type}s.`);
-        }
-
-        function showWebhookEventsModal(webhookIndex) {
-            if (!webhookList[webhookIndex]) return;
-            currentEditingWebhookIndex = webhookIndex;
-            const webhook = webhookList[webhookIndex];
-            webhookEventsModalTitle.innerHTML = `Select events for <strong>${webhook.description}</strong>:`;
-            if(webhookEventsSearchInput) webhookEventsSearchInput.value = "";
-            renderWebhookEventsList(webhook.id);
-            webhookEventsModal.classList.remove('hidden'); webhookEventsModal.classList.add('flex');
-        }
-        function hideWebhookEventsModal() { webhookEventsModal.classList.add('hidden'); webhookEventsModal.classList.remove('flex'); currentEditingWebhookIndex = -1; }
-        
-        function renderWebhookEventsList(webhookId, filterText = "") {
-            const sortedEvents = [...moonWeatherList].sort((a, b) => {
-                if(a.type !== b.type) return a.type === 'Moon' ? -1 : 1;
-                return b.multiplier - a.multiplier;
-            });
-            if (sortedEvents.length === 0) { webhookEventsListContainer.innerHTML = '<div class="p-3 bg-yellow-100 text-yellow-800 rounded text-xs">No events found.</div>'; return; }
-            let html = ''; let lastType = null;
-            sortedEvents.forEach(item => {
-                if (filterText && !item.name.toLowerCase().includes(filterText.toLowerCase())) return;
-                if (item.type !== lastType) {
-                    const typeColor = item.type === 'Moon' ? 'text-blue-600' : 'text-cyan-600';
-                    html += `<div class="text-xs font-bold ${typeColor} bg-gray-100 dark:bg-gray-800 border-b dark:border-gray-700 py-1 sticky top-0 mb-1 z-10">${item.type}s</div>`;
-                    lastType = item.type;
-                }
-                const isChecked = (item.webhookIds || []).includes(webhookId) ? 'checked' : '';
-                html += `
-                <div class="webhook-select-item flex items-center justify-between p-2 border-b dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onclick="toggleWebhookEventCheckbox('${item.id}')">
-                    <div class="overflow-hidden mr-2">
-                        <div class="flex items-center gap-1 text-sm font-bold">${item.name}</div>
-                        <div class="text-xs text-gray-500">${item.multiplier}x Multiplier</div>
-                    </div>
-                    <div class="m-0">
-                        <input class="webhook-event-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" type="checkbox" value="${item.id}" id="weCheck-${item.id}" ${isChecked} onclick="event.stopPropagation()">
-                    </div>
-                </div>`;
-            });
-            webhookEventsListContainer.innerHTML = html || '<div class="text-center text-gray-400 text-xs p-3">No matching events found.</div>';
-        }
-
-        function filterWebhookEventsSelection() {
-            if (currentEditingWebhookIndex === -1) return;
-            renderWebhookEventsList(webhookList[currentEditingWebhookIndex].id, webhookEventsSearchInput.value.trim());
-        }
-        function toggleWebhookEventCheckbox(id) { const cb = document.getElementById(`weCheck-${id}`); if (cb) cb.checked = !cb.checked; }
-        function toggleSelectAllEventsForWebhook(selectAll) { document.querySelectorAll('.webhook-event-checkbox').forEach(cb => cb.checked = selectAll); }
-        function saveWebhookEvents() {
-            if (currentEditingWebhookIndex === -1) return;
-            const webhookId = webhookList[currentEditingWebhookIndex].id;
-            document.querySelectorAll('.webhook-event-checkbox').forEach(cb => {
-                const itemId = parseInt(cb.value);
-                const item = moonWeatherList.find(i => i.id === itemId);
-                if (item) {
-                    if (!item.webhookIds) item.webhookIds = [];
-                    if (cb.checked) { if (!item.webhookIds.includes(webhookId)) item.webhookIds.push(webhookId); } 
-                    else { item.webhookIds = item.webhookIds.filter(id => id !== webhookId); }
+            keys.forEach(dateStr => {
+                const date = new Date(dateStr);
+                const diffTime = Math.abs(now - date);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                if (diffDays > 30) {
+                    delete evs[dateStr];
+                    deleted++;
                 }
             });
-            saveSettings(); renderList(); renderWebhookList(); hideWebhookEventsModal(); showToast(`Events updated.`);
-        }
-        function toggleWb(i) { webhookList[i].active = !webhookList[i].active; saveSettings(); renderWebhookList(); }
-        function removeWebhook(i) { const wb = webhookList[i]; if(confirm(`Delete webhook "${wb.description}"?`)) { webhookList.splice(i,1); saveSettings(); renderWebhookList(); showToast(`Webhook "${wb.description}" deleted.`); } }
-        function updateSearchDatalist() {
-            const dl = document.getElementById('eventNamesList'); dl.innerHTML = ''; const allNames = new Set();
-            moonWeatherList.forEach(i => allNames.add(i.name));
-            const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
-            Object.values(evs).flat().forEach(e => allNames.add(e.name));
-            [...allNames].sort().forEach(n => { const opt = document.createElement('option'); opt.value = n; dl.appendChild(opt); });
-        }
-        function renderRecentEvents() {
-            const date = document.getElementById('eventDatePicker').value;
-            const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
-            const dayEvents = evs[date] || [];
-            const container = document.getElementById('recentEventsList');
-            if(!dayEvents.length) { container.innerHTML='<p class="text-center text-gray-400 text-xs mt-4">No events found.</p>'; return; }
-            const search = document.getElementById('eventSearchInput').value.toLowerCase();
-            const typeFilter = document.querySelector('input[name="typeFilter"]:checked').value;
-            let filtered = dayEvents.map((e, index) => ({...e, originalIndex: index})).filter(e => {
-                if(typeFilter !== 'All' && e.type !== typeFilter) return false;
-                if(search && !e.name.toLowerCase().includes(search)) return false;
-                return true;
-            });
-            filtered.sort((a,b) => eventSortOrder === 'desc' ? b.start - a.start : a.start - b.start);
-            container.innerHTML = `<div class="flex flex-col">` + filtered.map(e => `
-                <div class="slide-reveal-wrapper flex group border-b border-gray-100 dark:border-gray-700 last:border-0 relative h-[60px]">
-                    <div class="bg-white dark:bg-gray-800 p-2 flex-grow relative z-10 transition-transform">
-                        <div class="flex justify-between"><strong class="text-sm">${e.name}</strong><small class="text-gray-500 text-xs">${new Date(e.start).toLocaleTimeString()}</small></div>
-                        <div class="text-gray-500 text-xs">Duration: ${formatDuration(e.duration)}</div>
-                    </div>
-                    <div class="slide-reveal-action"><div class="w-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white cursor-pointer" onclick="deleteHistoryItem('${date}', ${e.originalIndex})"><i class="bi bi-trash"></i></div></div>
-                </div>`).join('') + `</div>`;
-        }
-        function deleteHistoryItem(date, index) {
-            const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
-            if(evs[date] && evs[date][index]) {
-                const eventName = evs[date][index].name;
-                evs[date].splice(index, 1);
-                if (evs[date].length === 0) delete evs[date];
+
+            if (deleted > 0) {
                 localStorage.setItem('dailyEvents', JSON.stringify(evs));
-                renderRecentEvents(); try { updateItemListDropdown(); } catch(e){} updateEventStatistics(); showToast(`Deleted "${eventName}".`);
+                console.log(`Cleaned up ${deleted} days of old history.`);
             }
-        }
-        function clearHistory() { if(confirm("Clear entire event history?")) { localStorage.removeItem('dailyEvents'); renderRecentEvents(); try { updateItemListDropdown(); } catch(e){} updateEventStatistics(); showToast("History cleared."); } }
+        } catch(e) { console.error("History cleanup failed", e); }
+    }
 
-        // --- Stats & Charts ---
-        function getTimeRange() {
-            const s = document.getElementById('statsDateStart').value.split('-'); const e = document.getElementById('statsDateEnd').value.split('-');
-            return { start: new Date(s[0], s[1]-1, s[2], 0, 0, 0), end: new Date(e[0], e[1]-1, e[2], 23, 59, 59, 999) };
-        }
-        function updateItemListDropdown() {
-            const { start, end } = getTimeRange();
-            const typeFilter = document.querySelector('input[name="statsTypeFilter"]:checked').value;
-            const dataList = document.getElementById('statsItemDataList');
-            const dailyEvents = JSON.parse(localStorage.getItem('dailyEvents')) || {};
-            const availableItems = new Set();
-            Object.keys(dailyEvents).forEach(dateKey => {
-                dailyEvents[dateKey].forEach(event => {
-                    if (event.start >= start.getTime() && event.start <= end.getTime()) {
-                        if (typeFilter === 'All' || event.type === typeFilter) availableItems.add(event.name);
-                    }
-                });
-            });
-            dataList.innerHTML = ''; Array.from(availableItems).sort().forEach(name => { const option = document.createElement('option'); option.value = name; dataList.appendChild(option); });
-            updateEventStatistics(); 
-        };
-        function getItemColor(name, type) {
-            const n = name.toLowerCase();
-            if (n.includes('blood') || n.includes('red')) return 'rgba(220, 53, 69, 0.7)';
-            if (n.includes('blue') || n.includes('rain')) return 'rgba(13, 110, 253, 0.7)';
-            if (n.includes('gold') || n.includes('sun')) return 'rgba(255, 193, 7, 0.7)';
-            if (n.includes('void') || n.includes('dark')) return 'rgba(33, 37, 41, 0.7)';
-            if (type === 'Moon') return 'rgba(111, 66, 193, 0.7)'; return 'rgba(253, 126, 20, 0.7)';
-        }
-        function updateEventStatistics() {
-            const dailyEvents = JSON.parse(localStorage.getItem('dailyEvents')) || {};
-            const { start, end } = getTimeRange();
-            const typeFilter = document.querySelector('input[name="statsTypeFilter"]:checked').value;
-            const itemFilter = document.getElementById('statsItemFilter').value.toLowerCase();
-            const metric = document.getElementById('statsMetricFilter').value; 
-            const aggregated = {};
-            Object.keys(dailyEvents).forEach(dateKey => {
-                dailyEvents[dateKey].forEach(event => {
-                    if (event.start >= start.getTime() && event.start <= end.getTime()) {
-                        if ((typeFilter === 'All' || event.type === typeFilter) && (!itemFilter || event.name.toLowerCase().includes(itemFilter))) {
-                            if (!aggregated[event.name]) aggregated[event.name] = { count: 0, totalDuration: 0, type: event.type };
-                            aggregated[event.name].count++; aggregated[event.name].totalDuration += event.duration;
-                        }
-                    }
-                });
-            });
-            const labels = [], data = [], colors = [];
-            const sortedKeys = Object.keys(aggregated).sort((a, b) => {
-                const va = metric === 'count' ? aggregated[a].count : aggregated[a].totalDuration;
-                const vb = metric === 'count' ? aggregated[b].count : aggregated[b].totalDuration;
-                return vb - va;
-            });
-            sortedKeys.forEach(key => {
-                labels.push(key);
-                data.push(metric === 'count' ? aggregated[key].count : (aggregated[key].totalDuration / aggregated[key].count / 60000));
-                colors.push(getItemColor(key, aggregated[key].type));
-            });
-            const placeholder = document.getElementById('chartPlaceholder');
-            if (data.length === 0) { placeholder.style.display = 'block'; if (eventStatsChartInstance) { eventStatsChartInstance.destroy(); eventStatsChartInstance = null; } } 
-            else { placeholder.style.display = 'none'; renderEventStatsChart(data, labels, colors, metric === 'avgTime' ? "Avg Time" : "Occurrences", metric); }
-        };
-        function renderEventStatsChart(data, labels, bgColors, labelText, metricType) {
-            const ctx = document.getElementById('eventStatsChart').getContext('2d');
-            if (eventStatsChartInstance) eventStatsChartInstance.destroy();
-            eventStatsChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: labels, datasets: [{ label: labelText, data: data, backgroundColor: bgColors, borderWidth: 1 }] },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, 
-                    scales: { 
-                        y: { 
-                            beginAtZero: true,
-                            ticks: { color: document.documentElement.classList.contains('dark') ? '#cbd5e0' : '#4a5568', callback: function(value) { if (metricType === 'avgTime') { const sec = Math.round(value * 60); const m = Math.floor(sec / 60); const s = sec % 60; return `${m}m ${s}s`; } return value; } },
-                        },
-                        x: { ticks: { color: document.documentElement.classList.contains('dark') ? '#cbd5e0' : '#4a5568' } }
-                    },
-                    plugins: { legend: { labels: { color: document.documentElement.classList.contains('dark') ? '#cbd5e0' : '#4a5568' } }, tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) { label += ': '; } if (context.parsed.y !== null) { if (metricType === 'avgTime') { const sec = Math.round(context.parsed.y * 60); const m = Math.floor(sec / 60); const s = sec % 60; label += `${m}m ${s}s`; } else { label += context.parsed.y; } } return label; } } } }
-                }
-            });
-        };
+    function saveSettings() {
+        localStorage.setItem('moonWeatherList', JSON.stringify(moonWeatherList));
+        localStorage.setItem('webhookList', JSON.stringify(webhookList));
+        localStorage.setItem('ocrConfigs', JSON.stringify(ocrConfigs));
+        localStorage.setItem('currentConfigIndex', currentConfigIndex);
+        localStorage.setItem('regionX', regionXInput.value);
+        localStorage.setItem('regionY', regionYInput.value);
+        localStorage.setItem('regionW', regionWInput.value);
+        localStorage.setItem('regionH', regionHInput.value);
+        localStorage.setItem('region2X', region2XInput.value);
+        localStorage.setItem('region2Y', region2YInput.value);
+        localStorage.setItem('region2W', region2WInput.value);
+        localStorage.setItem('region2H', region2HInput.value);
+        localStorage.setItem('scanMode', scanMode);
+        localStorage.setItem('gracePeriodSeconds', gracePeriodSecondsInput.value);
+    }
 
-        function updateUploadLabel(input) {
-            const display = document.getElementById('fileNameDisplay');
-            if(input.files[0]) {
-                display.textContent = input.files[0].name;
-                Papa.parse(input.files[0], { header:true, skipEmptyLines:true, complete: (res) => {
-                    let c=0;
-                    res.data.forEach(row => {
-                        const n=row.Name||row.name, t=row.Type||row.type, m=parseFloat(row.Multiplier||row.multiplier);
-                        if(n && t && m && !moonWeatherList.some(x=>x.name===n)) {
-                            moonWeatherList.push({id:Date.now()+c, name:n, type:t, multiplier:m, chances: row.Chances||row.chances||""});
-                            c++;
+    function removeSettings() {
+        if (confirm("Reset ALL settings?")) { localStorage.clear(); location.reload(); }
+    }
+
+    function toggleScanMode(save = true) {
+        const mode = document.querySelector('input[name="scanMode"]:checked').value;
+        scanMode = mode;
+        if (mode === 'dual') {
+            region2Controls.style.display = 'block';
+            document.getElementById('zoom2Status').style.display = 'block';
+            document.title = "FYP Event Notifier (Dual Scan)";
+        } else {
+            region2Controls.style.display = 'none';
+            document.getElementById('zoom2Status').style.display = 'none';
+            document.title = "FYP Event Notifier (Uni-Scan)";
+        }
+        if(save) {
+            saveSettings();
+            updatePreviewAndSize();
+        }
+    }
+
+    function updateConfigDropdown() {
+        const select = document.getElementById('configSelect');
+        select.innerHTML = '<option value="-1">-- Custom Preset --</option>';
+        ocrConfigs.forEach((c, i) => {
+            const opt = document.createElement('option');
+            opt.value = i; opt.textContent = c.name;
+            select.appendChild(opt);
+        });
+        select.value = currentConfigIndex;
+        const isCustom = (currentConfigIndex === -1);
+        const renameBtn = document.getElementById('menuRenameBtn');
+        const deleteBtn = document.getElementById('menuDeleteBtn');
+        if(renameBtn) renameBtn.disabled = isCustom;
+        if(deleteBtn) deleteBtn.disabled = isCustom;
+        const display = document.getElementById('configNameDisplay');
+        display.textContent = isCustom ? "Current: Custom" : `Current: ${ocrConfigs[currentConfigIndex].name}`;
+    }
+
+    function togglePresetMenu(e) {
+        if(e) e.stopPropagation();
+        document.getElementById('presetMenu').classList.toggle('hidden');
+    }
+    function hidePresetMenu() { document.getElementById('presetMenu').classList.add('hidden'); }
+    window.addEventListener('click', (e) => {
+        const menu = document.getElementById('presetMenu');
+        const btn = document.getElementById('presetMenuBtn');
+        if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !btn.contains(e.target)) hidePresetMenu();
+    });
+
+    function handleConfigSelect() {
+        const idx = parseInt(document.getElementById('configSelect').value);
+        currentConfigIndex = idx;
+        if (idx !== -1 && ocrConfigs[idx]) {
+            const c = ocrConfigs[idx];
+            regionXInput.value = c.x; regionYInput.value = c.y; regionWInput.value = c.w; regionHInput.value = c.h;
+            region2XInput.value = c.r2x || 0; region2YInput.value = c.r2y || 0; region2WInput.value = c.r2w || 300; region2HInput.value = c.r2h || 50;
+            scanMode = c.mode || 'uni';
+            document.getElementById('modeSingle').checked = (scanMode === 'uni');
+            document.getElementById('modeDual').checked = (scanMode === 'dual');
+            toggleScanMode(false);
+            showToast(`Loaded "${c.name}"`);
+            saveSettings(); updatePreviewAndSize();
+        }
+        updateConfigDropdown();
+    }
+
+    function handleSaveButton() {
+        if (currentConfigIndex !== -1) {
+            const c = ocrConfigs[currentConfigIndex];
+            c.x = parseInt(regionXInput.value); c.y = parseInt(regionYInput.value); c.w = parseInt(regionWInput.value); c.h = parseInt(regionHInput.value);
+            c.r2x = parseInt(region2XInput.value); c.r2y = parseInt(region2YInput.value); c.r2w = parseInt(region2WInput.value); c.r2h = parseInt(region2HInput.value);
+            c.mode = scanMode;
+            saveSettings(); showToast(`Coordinates updated for "${c.name}"`);
+        } else { openConfigModal(); }
+    }
+
+    function saveAsNewConfig() {
+        openConfigModal();
+        if (currentConfigIndex !== -1 && ocrConfigs[currentConfigIndex]) document.getElementById('configName').value = ocrConfigs[currentConfigIndex].name + " (Copy)";
+    }
+    function hideConfigModal() {
+        document.getElementById('configModal').classList.add('hidden');
+        document.getElementById('configModal').classList.remove('flex');
+    }
+    function openConfigModal() {
+        isRenamingConfig = false;
+        document.getElementById('configName').value = "";
+        document.getElementById('configModalTitle').textContent = "Save New Preset";
+        const modal = document.getElementById('configModal');
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        document.getElementById('configName').focus();
+    }
+    function renameCurrentConfig() {
+        if (currentConfigIndex === -1) return;
+        isRenamingConfig = true;
+        document.getElementById('configName').value = ocrConfigs[currentConfigIndex].name;
+        document.getElementById('configModalTitle').textContent = "Rename Preset";
+        const modal = document.getElementById('configModal');
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        document.getElementById('configName').focus();
+    }
+
+    document.getElementById('saveConfigForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('configName').value.trim();
+        if(!name) return;
+        if (isRenamingConfig && currentConfigIndex !== -1) {
+            ocrConfigs[currentConfigIndex].name = name;
+            showToast(`Preset renamed to "${name}".`);
+        } else {
+            const newC = {
+                name, 
+                x: parseInt(regionXInput.value), y: parseInt(regionYInput.value), w: parseInt(regionWInput.value), h: parseInt(regionHInput.value),
+                r2x: parseInt(region2XInput.value), r2y: parseInt(region2YInput.value), r2w: parseInt(region2WInput.value), r2h: parseInt(region2HInput.value),
+                mode: scanMode
+            };
+            ocrConfigs.push(newC);
+            currentConfigIndex = ocrConfigs.length - 1;
+            showToast(`Preset "${name}" saved.`);
+        }
+        saveSettings(); updateConfigDropdown(); hideConfigModal(); isRenamingConfig = false;
+    });
+
+    function deleteCurrentConfig() {
+        if(currentConfigIndex !== -1 && confirm("Delete preset?")) {
+            const name = ocrConfigs[currentConfigIndex].name;
+            ocrConfigs.splice(currentConfigIndex, 1);
+            currentConfigIndex = -1;
+            saveSettings(); updateConfigDropdown();
+            showToast(`Preset "${name}" deleted.`);
+        }
+    }
+    function resetToNewCustomConfig() {
+        currentConfigIndex = -1; scanMode = 'uni'; document.getElementById('modeSingle').checked = true; toggleScanMode();
+        regionXInput.value = 0; regionYInput.value = 0; regionWInput.value = 300; regionHInput.value = 50;
+        updateConfigDropdown(); saveSettings(); updatePreviewAndSize(); showToast("Reset to defaults.");
+    }
+    function exportPresets() {
+        if (ocrConfigs.length === 0) { showToast("No presets to export.", "error"); return; }
+        const blob = new Blob([JSON.stringify(ocrConfigs, null, 2)], {type: "application/json"});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fyp_presets.json';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); showToast("Presets exported.");
+    }
+    function importPresets(inputElement) {
+        const file = inputElement.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (Array.isArray(imported)) {
+                    let count = 0;
+                    imported.forEach(imp => {
+                        if (imp.name && imp.w > 0 && !ocrConfigs.find(c => c.name === imp.name)) {
+                            ocrConfigs.push(imp); count++;
                         }
                     });
-                    if(c>0) { saveSettings(); renderList(); showToast(`Imported ${c} items`); }
-                }});
-            } else { display.textContent = "Choose CSV..."; }
-        }
-        function exportEvents() {
-            const csv = Papa.unparse(moonWeatherList.map(i => ({Name:i.name, Type:i.type, Multiplier:i.multiplier, Chances:i.chances||""})));
-            const blob = new Blob([csv], {type:'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fyp_events.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); showToast("Exported CSV file.");
-        }
-        function sendDiscordNotification(item, status, dur) {
-            const activeHooks = webhookList.filter(w => w.active);
-            if(!activeHooks.length) return;
-            const msg = status === 'start' ? `${item.name} (Gives **${item.multiplier}x!**) **has started!**` : `${item.name} **ended!** (Duration: ${formatDuration(dur)})`;
-            activeHooks.forEach(h => {
-                fetch(h.url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content: msg}) })
-                .then(r => { if (r.ok) addLog(`[DISCORD] Sent ${status} notification.`); })
-                .catch(e => addLog(`[DISCORD] Error: ${e.message}`));
-            });
-        }
-        function addRecentEvent(item, dur, start) {
-            const now = new Date(); const k = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
-            if(!evs[k]) evs[k] = [];
-            evs[k].push({name:item.name, type:item.type, duration:dur, start});
-            localStorage.setItem('dailyEvents', JSON.stringify(evs));
-            renderRecentEvents(); updateItemListDropdown();
-        }
-        function openTab(e,t) {
-            document.querySelectorAll('.tab-content').forEach(x => x.classList.add('hidden'));
-            document.querySelectorAll('.nav-link').forEach(x => { x.classList.remove('font-bold', 'bg-white', 'text-blue-600', 'border-b-2', 'border-blue-600', 'dark:bg-gray-800'); x.classList.add('font-medium', 'text-gray-600', 'hover:bg-gray-200', 'dark:text-gray-400', 'dark:hover:bg-gray-700'); });
-            document.getElementById(t).classList.remove('hidden');
-            const link = e.currentTarget;
-            link.classList.remove('font-medium', 'text-gray-600', 'hover:bg-gray-200', 'dark:text-gray-400', 'dark:hover:bg-gray-700');
-            link.classList.add('font-bold', 'bg-white', 'text-blue-600', 'border-b-2', 'border-blue-600', 'dark:bg-gray-800');
+                    if (count > 0) { saveSettings(); updateConfigDropdown(); showToast(`Imported ${count} new presets.`); }
+                    else { showToast("No new unique presets found.", "info"); }
+                } else { showToast("Invalid file format.", "error"); }
+            } catch (err) { showToast("Error parsing JSON file.", "error"); }
+            inputElement.value = '';
         };
+        reader.readAsText(file);
+    }
+    
+    // --- Screen Capture ---
+    async function connectScreen() {
+        if (localStream && localStream.active) { stopStream(); return; }
+        if (!navigator.mediaDevices) return;
+        connectScreenButton.disabled = true;
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false });
+            localStream = stream;
+            videoElement.srcObject = stream;
+            videoElement.onloadedmetadata = () => {
+                videoElement.play();
+                connectScreenButton.innerHTML = '<i class="bi bi-display"></i> Connected (Stop)';
+                connectScreenButton.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+                connectScreenButton.classList.add('border', 'border-blue-500', 'text-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-gray-700');
+                connectScreenButton.disabled = false;
+                processButton.disabled = false;
+                
+                if(previewInterval) clearInterval(previewInterval);
+                previewInterval = setInterval(drawLivePreview, 100);
+                
+                rawCaptureContainer.style.display = 'flex';
+                viewPlaceholder.style.display = 'none';
+                addLog("Screen connected.");
+                showToast("Screen Source Connected.");
+            };
+            stream.getVideoTracks()[0].onended = stopStream;
+        } catch (err) { console.error(err); connectScreenButton.disabled = false; }
+    }
+
+    function stopStream() {
+        if(localStream) localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+        videoElement.srcObject = null;
+        if(ocrRunning) toggleProcess(true);
+        connectScreenButton.innerHTML = '<i class="bi bi-display"></i> Connect';
+        connectScreenButton.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+        connectScreenButton.classList.remove('border', 'border-blue-500', 'text-blue-500', 'hover:bg-blue-50', 'dark:hover:bg-gray-700');
+        connectScreenButton.disabled = false;
+        processButton.disabled = true;
+        rawCaptureContainer.style.display = 'none';
+        viewPlaceholder.style.display = 'block';
+        if(previewInterval) clearInterval(previewInterval);
+        addLog("Screen Disconnected.");
+        showToast("Screen Source Disconnected.");
+    }
+
+    // --- Live Preview ---
+    function drawLivePreview() {
+        if (videoElement.readyState < videoElement.HAVE_ENOUGH_DATA) return;
+        const r1 = { x: parseInt(regionXInput.value)||0, y: parseInt(regionYInput.value)||0, w: parseInt(regionWInput.value)||300, h: parseInt(regionHInput.value)||50 };
         
-        function hideItemWebhookModal() { document.getElementById('itemWebhookModal').classList.add('hidden'); document.getElementById('itemWebhookModal').classList.remove('flex'); }
-        function saveItemWebhooks() { hideItemWebhookModal(); } 
-        function showItemModal(index) {
-            const modal = document.getElementById('itemModal'); const title = document.getElementById('modalTitle');
-            const idxInput = document.getElementById('itemIndex'); const nameIn = document.getElementById('itemName'); const typeIn = document.getElementById('itemType'); const multIn = document.getElementById('itemMultiplier'); const chanceIn = document.getElementById('itemChances');
-            idxInput.value = index;
-            if (index === -1) { title.textContent = "Add Event"; nameIn.value = ""; typeIn.value = "Moon"; multIn.value = "3"; chanceIn.value = ""; } 
-            else { const item = moonWeatherList[index]; if (!item) return; title.textContent = "Edit Event"; nameIn.value = item.name; typeIn.value = item.type; multIn.value = item.multiplier; chanceIn.value = item.chances || ""; }
-            modal.classList.remove('hidden'); modal.classList.add('flex'); nameIn.focus();
+        if (scanMode === 'dual') {
+            const r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
+            const maxWidth = Math.max(r1.w, r2.w);
+            const totalHeight = r1.h + r2.h + 2; 
+            
+            if(captureViewCanvas.width !== maxWidth || captureViewCanvas.height !== totalHeight) {
+                captureViewCanvas.width = maxWidth; captureViewCanvas.height = totalHeight;
+            }
+            const ctx = captureViewCanvas.getContext('2d', { willReadFrequently: true });
+            ctx.fillStyle = '#222'; ctx.fillRect(0, 0, maxWidth, totalHeight);
+            ctx.drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, r1.w, r1.h);
+            ctx.fillStyle = '#06b6d4'; ctx.fillRect(0, r1.h, maxWidth, 2);
+            ctx.drawImage(videoElement, r2.x, r2.y, r2.w, r2.h, 0, r1.h + 2, r2.w, r2.h);
+        } else {
+            if(captureViewCanvas.width !== r1.w || captureViewCanvas.height !== r1.h) {
+                captureViewCanvas.width = r1.w; captureViewCanvas.height = r1.h;
+            }
+            captureViewCanvas.getContext('2d', { willReadFrequently: true }).drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, r1.w, r1.h);
         }
-        function hideItemModal() { document.getElementById('itemModal').classList.add('hidden'); document.getElementById('itemModal').classList.remove('flex'); }
-        function removeItem(index) {
-            const item = moonWeatherList[index];
-            if(confirm(`Delete "${item.name}"?`)) { moonWeatherList.splice(index, 1); saveSettings(); renderList(); showToast(`Deleted "${item.name}"`); }
+    }
+    function updatePreviewAndSize() { drawLivePreview(); }
+
+    // --- OCR Logic ---
+    
+    async function initTesseract() {
+        try {
+            if (worker) return true;
+            
+            worker = await Tesseract.createWorker('eng', 1, {
+                logger: m => console.log(m) 
+            });
+            
+            // Use integer '6' (Uniform Block) or '3' (Auto).
+            await worker.setParameters({ 
+                tessedit_pageseg_mode: 6, 
+                tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/.,%- ' 
+            });
+            
+            return true;
+        } catch (e) {
+            console.error("Tesseract Init Failed:", e);
+            showToast("OCR Init Failed (Check Console)", "error");
+            addLog(`Error: ${e.message}`);
+            return false;
         }
-        document.getElementById('itemForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const idx = parseInt(document.getElementById('itemIndex').value);
-            const name = document.getElementById('itemName').value.trim();
-            const type = document.getElementById('itemType').value;
-            const mult = parseFloat(document.getElementById('itemMultiplier').value);
-            const chances = document.getElementById('itemChances').value.trim();
-            if (!name) { showToast("Name is required", "error"); return; }
-            if (isNaN(mult)) { showToast("Valid multiplier required", "error"); return; }
-            if (idx === -1) { moonWeatherList.push({ id: Date.now(), name, type, multiplier: mult, chances }); showToast(`Added "${name}"`); } 
-            else { moonWeatherList[idx].name = name; moonWeatherList[idx].type = type; moonWeatherList[idx].multiplier = mult; moonWeatherList[idx].chances = chances; showToast(`Updated "${name}"`); }
-            saveSettings(); renderList(); hideItemModal();
+    }
+
+    async function toggleProcess(forceStop = false) {
+        if (ocrRunning) {
+            // --- STOP LOGIC ---
+            const activeKeys = Object.keys(activeItems);
+            if (!forceStop && activeKeys.length > 0) {
+                if (!confirm(`⚠️ ${activeKeys.length} event(s) are currently active.\n\nStopping will mark them as ENDED and send final notifications.\n\nContinue?`)) return;
+            }
+            
+            activeKeys.forEach(key => {
+                const state = activeItems[key];
+                if (state) {
+                    const duration = Date.now() - state.start;
+                    addLog(`**[STOPPED]** ${state.item.name} ended (OCR Stopped).`);
+                    addRecentEvent(state.item, duration, state.start);
+                    sendDiscordNotification(state.item, "end", duration);
+                }
+            });
+
+            ocrRunning = false;
+            activeItems = {}; 
+            renderActiveStatus();
+            
+            // Terminate Worker
+            if (worker) {
+                await worker.terminate();
+                worker = null;
+                addLog("Worker memory cleared.");
+            }
+
+            processButton.innerHTML = '<i class="bi bi-play-circle"></i> Start OCR';
+            processButton.classList.replace('bg-red-600', 'bg-green-600');
+            processButton.classList.replace('hover:bg-red-700', 'hover:bg-green-700');
+            addLog("OCR stopped.");
+            showToast("OCR Stopped.");
+            
+            document.getElementById('zoom1Status').textContent = "R1: Idle";
+            document.getElementById('zoom2Status').textContent = "R2: Idle";
+        } else {
+            // --- START LOGIC ---
+            const activeWebhooks = webhookList.filter(w => w.active);
+            if (activeWebhooks.length === 0) { showToast("No active webhooks selected!", "error"); return; }
+
+            const hasLinkedEvents = moonWeatherList.some(item => item.webhookIds && item.webhookIds.some(id => activeWebhooks.find(aw => aw.id === id)));
+
+            if (moonWeatherList.length === 0) { alert("⚠️ No events configured.\n\nYou must add at least one event to proceed."); return; }
+            else if (!hasLinkedEvents) { alert("⚠️ Active webhooks found, but no events are subscribed to them."); return; }
+            
+            processButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Init...';
+            processButton.disabled = true;
+
+            worker = null; 
+            const ready = await initTesseract();
+            processButton.disabled = false;
+
+            if (!ready) { processButton.innerHTML = '<i class="bi bi-play-circle"></i> Start OCR'; return; }
+            
+            lock1 = false; zoom1 = 2; lock2 = false; zoom2 = 2; 
+            scanCounter = 0; // Reset GC counter
+            
+            processButton.innerHTML = '<i class="bi bi-stop-circle"></i> Stop OCR';
+            processButton.classList.replace('bg-green-600', 'bg-red-600');
+            processButton.classList.replace('hover:bg-green-700', 'hover:bg-red-700');
+            addLog("OCR started.");
+            showToast("OCR Started.");
+            
+            ocrRunning = true;
+            activeMoonsList.innerHTML = ''; activeWeatherList.innerHTML = '';
+            cooldownsPlaceholder.style.display = 'block';
+            activeMoonsSection.classList.add('hidden'); activeWeatherSection.classList.add('hidden');
+            
+            scheduleNextScan();
+        }
+    }
+
+    // --- OPTIMIZED SCHEDULER & SCANNER ---
+    function scheduleNextScan(lastDuration = 0) {
+        if (!ocrRunning) return;
+        
+        // ADAPTIVE DEBOUNCE:
+        // If your CPU is fast (duration < 100ms), we wait 200ms.
+        // If your CPU is struggling (duration > 300ms), we wait longer to let it breathe.
+        const baseDelay = 200; 
+        const adaptiveDelay = Math.max(baseDelay, lastDuration);
+        
+        setTimeout(scanCameraImage, adaptiveDelay);
+    }
+
+    let noTextCounterR1 = 0; 
+    let noTextCounterR2 = 0;
+
+    async function scanCameraImage() {
+        if (!ocrRunning || !videoElement || videoElement.readyState < videoElement.HAVE_ENOUGH_DATA) {
+            scheduleNextScan();
+            return;
+        }
+
+        const startTime = performance.now();
+
+        // 1. WORKER REFRESH (Garbage Collection)
+        if (worker && scanCounter > WORKER_REFRESH_RATE) {
+            console.log("Maintenance: Refreshing OCR worker memory...");
+            try {
+                await worker.terminate(); 
+                worker = null;
+                await initTesseract();    
+                scanCounter = 0;          
+            } catch (e) {
+                console.error("Worker refresh failed", e);
+            }
+        }
+
+        if (!worker) {
+             addLog("Error: Worker lost. Restarting...");
+             toggleProcess(true);
+             return;
+        }
+
+        try {
+            scanCounter++; 
+            
+            const ctx = canvasElement.getContext('2d', { willReadFrequently: true });
+            const r1 = { x: parseInt(regionXInput.value)||0, y: parseInt(regionYInput.value)||0, w: parseInt(regionWInput.value)||300, h: parseInt(regionHInput.value)||50 };
+            
+            let r2 = { x: 0, y: 0, w: 0, h: 0 }; 
+
+            let w1 = r1.w * zoom1;
+            let h1 = r1.h * zoom1;
+            let w2 = 0, h2 = 0;
+            let boundaryY = h1;
+
+            if (scanMode === 'dual') {
+                r2 = { x: parseInt(region2XInput.value)||0, y: parseInt(region2YInput.value)||0, w: parseInt(region2WInput.value)||300, h: parseInt(region2HInput.value)||50 };
+                w2 = r2.w * zoom2; h2 = r2.h * zoom2;
+                boundaryY = h1;
+            }
+
+            const finalW = Math.max(w1, w2);
+            const finalH = h1 + h2;
+
+            // Prevent canvas thrashing by checking dimensions first
+            if (canvasElement.width !== finalW || canvasElement.height !== finalH) {
+                canvasElement.width = finalW; canvasElement.height = finalH;
+            }
+
+            ctx.filter = 'grayscale(100%)'; 
+            
+            ctx.drawImage(videoElement, r1.x, r1.y, r1.w, r1.h, 0, 0, w1, h1);
+            if (scanMode === 'dual') ctx.drawImage(videoElement, r2.x, r2.y, r2.w, r2.h, 0, h1, w2, h2);
+
+            const { data } = await worker.recognize(canvasElement);
+            
+            if (!ocrRunning) return;
+
+            // --- MATCHING LOGIC ---
+            let foundR1 = false; let foundR2 = false;
+            let r1HasAnyText = false; let r2HasAnyText = false;
+            const normalize = (text) => text.toLowerCase().replace(/\s+/g, '');
+            const fullText = normalize(data.text);
+            const words = data.words || [];
+
+            words.forEach(w => {
+                if (w.confidence > 40) {
+                    const y = w.bbox.y0;
+                    if (scanMode === 'dual' && y >= boundaryY) r2HasAnyText = true;
+                    else r1HasAnyText = true;
+                }
+            });
+
+            const currentMatches = new Map();
+            moonWeatherList.forEach(item => {
+                const normName = normalize(item.name);
+                if (fullText.includes(normName)) {
+                    let region = 1;
+                    const matchWord = words.find(w => normalize(w.text).includes(normName) || normName.includes(normalize(w.text)));
+                    if (matchWord && scanMode === 'dual' && matchWord.bbox.y0 >= boundaryY) region = 2;
+                    
+                    currentMatches.set(item.name, { item, region });
+                    if (region === 1) foundR1 = true;
+                    if (region === 2) foundR2 = true;
+                }
+            });
+
+            currentMatches.forEach((matchData, name) => {
+                const { item, region } = matchData;
+                if (activeItems[name]) {
+                    activeItems[name].graceEndTime = null; 
+                } else {
+                    addLog(`**[START]** ${name} (R${region})`);
+                    activeItems[name] = { item, start: Date.now(), graceEndTime: null };
+                    sendDiscordNotification(item, "start");
+                    renderActiveStatus();
+                }
+            });
+
+            Object.keys(activeItems).forEach(name => {
+                if (!currentMatches.has(name)) {
+                    const state = activeItems[name];
+                    if (state.graceEndTime === null) {
+                        const graceSec = parseInt(gracePeriodSecondsInput.value) || 5;
+                        state.graceEndTime = Date.now() + (graceSec * 1000);
+                    }
+                }
+            });
+
+            if (foundR1) { lock1 = true; noTextCounterR1 = 0; }
+            else if (r1HasAnyText) { 
+                lock1 = false; 
+                noTextCounterR1 = 0; 
+                if (zoom1 < 2.5) zoom1 += 0.5; 
+            }
+            else { 
+                noTextCounterR1++; 
+                if (noTextCounterR1 > 3) { 
+                    lock1 = false; 
+                    zoom1 = 1; 
+                } 
+            }
+
+            if (scanMode === 'dual') {
+                if (foundR2) { lock2 = true; noTextCounterR2 = 0; }
+                else if (r2HasAnyText) { 
+                    lock2 = false; 
+                    noTextCounterR2 = 0; 
+                    if (zoom2 < 2.5) zoom2 += 0.5; 
+                }
+                else { 
+                    noTextCounterR2++; 
+                    if (noTextCounterR2 > 3) { 
+                        lock2 = false; 
+                        zoom2 = 1; 
+                    } 
+                }
+            }
+
+            requestAnimationFrame(() => {
+                document.getElementById('zoom1Status').innerHTML = `R1: ${zoom1}x ${lock1 ? '<i class="bi bi-lock-fill text-green-400"></i>' : ''}`;
+                if (scanMode === 'dual') document.getElementById('zoom2Status').innerHTML = `R2: ${zoom2}x ${lock2 ? '<i class="bi bi-lock-fill text-green-400"></i>' : ''}`;
+            });
+
+        } catch (err) {
+            console.error("Scan Error", err);
+        } finally {
+            const duration = performance.now() - startTime;
+            scheduleNextScan(duration); 
+        }
+    }
+
+    // --- Drag & Select ---
+    const regionSelectionModal = document.getElementById('regionSelectionModal');
+    const selectionCanvas = document.getElementById('selectionCanvas');
+    let selectionCtx = null, isDragging = false, startX=0, startY=0, endX=0, endY=0, animId=null;
+
+    function startRegionSelection() {
+        if (!localStream) { showToast("Connect screen first!", "error"); return; }
+        dragSelectionStep = 1;
+        const title = document.getElementById('regionSelectionTitle');
+        if (scanMode === 'dual') title.innerHTML = `<i class="bi bi-1-square"></i> Select Region 1 (Top)`;
+        else title.innerHTML = `<i class="bi bi-mouse"></i> Drag to select area`;
+        selectionCanvas.width = videoElement.videoWidth; selectionCanvas.height = videoElement.videoHeight;
+        selectionCtx = selectionCanvas.getContext('2d');
+        regionSelectionModal.classList.remove('hidden'); regionSelectionModal.classList.add('flex');
+        animId = requestAnimationFrame(renderSelectionLoop);
+    }
+
+    function renderSelectionLoop() {
+        if (regionSelectionModal.classList.contains('hidden')) return;
+        selectionCtx.drawImage(videoElement, 0, 0, selectionCanvas.width, selectionCanvas.height);
+        const w = endX - startX; const h = endY - startY;
+        if (w !== 0 && h !== 0) {
+            selectionCtx.strokeStyle = 'red'; selectionCtx.lineWidth = 3; selectionCtx.strokeRect(startX, startY, w, h);
+            selectionCtx.fillStyle = 'rgba(255, 0, 0, 0.2)'; selectionCtx.fillRect(startX, startY, w, h);
+        }
+        animId = requestAnimationFrame(renderSelectionLoop);
+    }
+    function closeRegionSelection() {
+        cancelAnimationFrame(animId);
+        regionSelectionModal.classList.add('hidden'); regionSelectionModal.classList.remove('flex');
+        dragSelectionStep = 0;
+    }
+    function confirmRegionSelection() {
+        let x = Math.min(startX, endX), y = Math.min(startY, endY), w = Math.abs(endX - startX), h = Math.abs(endY - startY);
+        if (w < 10 || h < 10) { showToast("Too small!", "error"); return; }
+        if (dragSelectionStep === 1) {
+            regionXInput.value = Math.round(x); regionYInput.value = Math.round(y); regionWInput.value = Math.round(w); regionHInput.value = Math.round(h);
+            if (scanMode === 'dual') {
+                dragSelectionStep = 2;
+                document.getElementById('regionSelectionTitle').innerHTML = `<i class="bi bi-2-square"></i> Select Region 2 (Bottom)`;
+                startX=0; startY=0; endX=0; endY=0;
+                showToast("Region 1 set. Now select Region 2.");
+            } else { updatePreviewAndSize(); saveSettings(); closeRegionSelection(); showToast("Region set!"); }
+        } else if (dragSelectionStep === 2) {
+            region2XInput.value = Math.round(x); region2YInput.value = Math.round(y); region2WInput.value = Math.round(w); region2HInput.value = Math.round(h);
+            updatePreviewAndSize(); saveSettings(); closeRegionSelection(); showToast("Dual Regions set!");
+        }
+    }
+    selectionCanvas.addEventListener('mousedown', e => { isDragging=true; const r=selectionCanvas.getBoundingClientRect(); const sx=selectionCanvas.width/r.width; const sy=selectionCanvas.height/r.height; startX=(e.clientX-r.left)*sx; startY=(e.clientY-r.top)*sy; endX=startX; endY=startY; });
+    selectionCanvas.addEventListener('mousemove', e => { if(!isDragging)return; const r=selectionCanvas.getBoundingClientRect(); const sx=selectionCanvas.width/r.width; const sy=selectionCanvas.height/r.height; endX=(e.clientX-r.left)*sx; endY=(e.clientY-r.top)*sy; });
+    selectionCanvas.addEventListener('mouseup', () => isDragging=false);
+
+    // --- Helpers ---
+    function renderActiveStatus() {
+        const now = Date.now();
+        const keysToRemove = [];
+        Object.keys(activeItems).forEach(key => {
+            const state = activeItems[key];
+            if (state.graceEndTime !== null) {
+                const remaining = state.graceEndTime - now;
+                if (remaining <= 0) {
+                    keysToRemove.push(key);
+                    const graceDuration = (parseInt(gracePeriodSecondsInput.value)||5) * 1000;
+                    const activeEndTime = state.graceEndTime - graceDuration;
+                    const duration = activeEndTime - state.start;
+                    addLog(`**[END]** ${state.item.name}`);
+                    addRecentEvent(state.item, duration, state.start);
+                    sendDiscordNotification(state.item, "end", duration);
+                }
+            }
         });
-        function showWebhookModal(index) {
-            const modal = document.getElementById('webhookModal'); const title = document.getElementById('webhookModalTitle');
-            const idxInput = document.getElementById('webhookIndex'); const descIn = document.getElementById('modalWebhookDescription'); const urlIn = document.getElementById('modalWebhookUrl');
-            idxInput.value = index;
-            if (index === -1) { title.textContent = "Add Webhook"; descIn.value = ""; urlIn.value = ""; } 
-            else { const wb = webhookList[index]; if (!wb) return; title.textContent = "Edit Webhook"; descIn.value = wb.description; urlIn.value = wb.url; }
-            modal.classList.remove('hidden'); modal.classList.add('flex'); descIn.focus();
+        keysToRemove.forEach(k => delete activeItems[k]);
+
+        const list = Object.values(activeItems);
+        if(list.length === 0) { 
+            cooldownsPlaceholder.style.display='block'; 
+            activeMoonsSection.classList.add('hidden'); activeWeatherSection.classList.add('hidden');
+            cooldownTimerLog.textContent = ocrRunning ? "Scanning..." : "Idle"; return; 
         }
-        function hideWebhookModal() { document.getElementById('webhookModal').classList.add('hidden'); document.getElementById('webhookModal').classList.remove('flex'); }
-        function testNewWebhook() {
-            const url = document.getElementById('modalWebhookUrl').value.trim();
-            if (!url) { showToast("Enter a URL first", "error"); return; }
-            fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: "🔔 **Test notification** from FYP Event Notifier!" }) })
-            .then(res => { if (res.ok) showToast("Test sent! Check Discord."); else showToast("Failed to send test.", "error"); })
-            .catch(err => { showToast("Error: " + err.message, "error"); });
+        cooldownsPlaceholder.style.display='none';
+        
+        const moons = list.filter(s => s.item.type === 'Moon');
+        const weathers = list.filter(s => s.item.type === 'Weather');
+        
+        const generateHTML = (items) => items.map(s => {
+            const el = Date.now() - s.start;
+            let statusHtml = "";
+            if (s.graceEndTime !== null) {
+                const remainingMs = Math.max(0, s.graceEndTime - Date.now());
+                const remainingSec = (remainingMs / 1000).toFixed(1);
+                statusHtml = `<span class="text-red-500 font-bold animate-pulse text-xs">Ending in ${remainingSec}s</span>`;
+            } else {
+                statusHtml = `<span class="text-green-600 font-bold text-xs">Active ${formatDuration(el)}</span>`;
+            }
+            return `<div class="px-3 py-2 flex justify-between items-center bg-white dark:bg-gray-800 border-b dark:border-gray-700 last:border-0"><div><strong>${s.item.name}</strong></div><small>${statusHtml}</small></div>`;
+        }).join('');
+
+        if(moons.length > 0) { activeMoonsSection.classList.remove('hidden'); activeMoonsList.innerHTML = generateHTML(moons); } 
+        else { activeMoonsSection.classList.add('hidden'); }
+        if(weathers.length > 0) { activeWeatherSection.classList.remove('hidden'); activeWeatherList.innerHTML = generateHTML(weathers); } 
+        else { activeWeatherSection.classList.add('hidden'); }
+        cooldownTimerLog.textContent = `Active: ${list.length}`;
+    }
+
+    // --- OPTIMIZED LOGGER (Memory Leak Fix) ---
+    function addLog(msg) { 
+        const time = new Date().toLocaleTimeString();
+        const html = `<div class="border-b border-gray-800 pb-0.5 mb-0.5 font-mono"><span class="text-gray-500">[${time}]</span> ${msg}</div>`;
+        logContentDiv.insertAdjacentHTML('afterbegin', html);
+        if (logContentDiv.children.length > 20) {
+            logContentDiv.lastElementChild.remove();
         }
-        document.getElementById('webhookForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const idx = parseInt(document.getElementById('webhookIndex').value);
-            const description = document.getElementById('modalWebhookDescription').value.trim();
-            const url = document.getElementById('modalWebhookUrl').value.trim();
-            if (!description || !url) { showToast("All fields required", "error"); return; }
-            if (idx === -1) { webhookList.push({ id: Date.now(), description, url, active: true }); showToast("Webhook added"); } 
-            else { webhookList[idx].description = description; webhookList[idx].url = url; showToast("Webhook updated"); }
-            saveSettings(); renderWebhookList(); hideWebhookModal();
+    }
+    
+    function clearLogs() { logContentDiv.innerHTML = ""; addLog("Logs cleared."); };
+    
+    function showToast(msg, type='success') {
+        const t = document.createElement('div'); 
+        const borderClass = type === 'success' ? 'border-green-500' : (type === 'error' ? 'border-red-500' : 'border-blue-500');
+        t.className = `bg-gray-800 text-white px-5 py-3 rounded shadow-lg flex items-center gap-3 animate-slideInToast min-w-[280px] border-l-4 ${borderClass}`;
+        t.innerHTML = `<span>${msg}</span>`;
+        document.querySelector('.toast-container').appendChild(t); 
+        setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(10px)'; setTimeout(() => t.remove(), 300); }, 3000);
+    }
+    
+    function formatChanceToPercent(input) {
+        if (!input) return '';
+        let clean = input.toString().toLowerCase().replace(/,/g, '');
+        if(clean.includes('/')) {
+            let [numStr, denStr] = clean.split('/');
+            let num = parseFloat(numStr);
+            let den = parseFloat(denStr);
+            if(denStr.includes('k')) den = parseFloat(denStr.replace('k', '')) * 1000;
+            if (!isNaN(num) && !isNaN(den) && den !== 0) return parseFloat(((num / den) * 100).toFixed(5)) + '%';
+        }
+        return input;
+    }
+    function formatDuration(ms) {
+        const sec = Math.floor(ms / 1000); const m = Math.floor(sec / 60); const s = sec % 60;
+        if (m > 0) return `${m}m ${s}s`; return `${s}s`;
+    }
+    
+    // --- Webhook & Event Lists Logic ---
+    function renderList() {
+        moonWeatherList.sort((a,b)=>b.multiplier-a.multiplier);
+        const moons=moonWeatherList.filter(i=>i.type==='Moon'), weathers=moonWeatherList.filter(i=>i.type==='Weather');
+        const gen = (l) => l.length ? l.map((i,idx)=> {
+            const originalIndex = moonWeatherList.indexOf(i);
+            const pct = formatChanceToPercent(i.chances);
+            return `
+            <div class="slide-reveal-wrapper group border-b border-gray-100 dark:border-gray-700 last:border-0">
+                <div class="bg-white dark:bg-gray-800 p-3 flex justify-between items-center relative z-10 transition-transform">
+                    <div>
+                        <strong>${i.name}</strong> 
+                        <span class="bg-gray-200 dark:bg-gray-600 px-1.5 py-0.5 rounded text-xs ml-1">${i.multiplier}x</span>
+                        ${pct ? `<span class="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100 px-1.5 py-0.5 rounded text-xs ml-1">${pct}</span>` : ''}
+                    </div>
+                    <i class="bi bi-chevron-left text-gray-300"></i>
+                </div>
+                <div class="slide-reveal-action">
+                    <div class="w-1/2 flex items-center justify-center bg-gray-500 hover:bg-gray-600 text-white cursor-pointer" onclick="showItemModal(${originalIndex})">
+                        <i class="bi bi-pencil"></i>
+                    </div>
+                    <div class="w-1/2 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white cursor-pointer" onclick="removeItem(${originalIndex})">
+                        <i class="bi bi-trash"></i>
+                    </div>
+                </div>
+            </div>`;
+        }).join('') : '<p class="text-gray-400 text-xs text-center p-4">None.</p>';
+        document.getElementById('moonListContainer').innerHTML=gen(moons);
+        document.getElementById('weatherListContainer').innerHTML=gen(weathers);
+        document.getElementById('modalMoonPreview').innerHTML = moons.map(i=>`<div class="px-2 py-1 border-b dark:border-gray-700 text-xs">${i.name}</div>`).join('') || '<p class="text-xs text-gray-500">None</p>';
+        document.getElementById('modalWeatherPreview').innerHTML = weathers.map(i=>`<div class="px-2 py-1 border-b dark:border-gray-700 text-xs">${i.name}</div>`).join('') || '<p class="text-xs text-gray-500">None</p>';
+        updateItemListDropdown();
+    }
+
+    function renderWebhookList() {
+        const c = document.getElementById('webhookListContainer');
+        if(!webhookList.length) { c.innerHTML='<p class="text-gray-400 text-sm text-center">No webhooks configured.</p>'; return; }
+        const totalMoons = moonWeatherList.filter(i => i.type === 'Moon').length;
+        const totalWeathers = moonWeatherList.filter(i => i.type === 'Weather').length;
+        const activeWebhooks = webhookList.map((w, i) => ({...w, originalIndex: i})).filter(w => w.active);
+        const inactiveWebhooks = webhookList.map((w, i) => ({...w, originalIndex: i})).filter(w => !w.active);
+        const renderItem = (w) => {
+            const moonSubs = moonWeatherList.filter(i => i.type === 'Moon' && (i.webhookIds || []).includes(w.id)).length;
+            const weatherSubs = moonWeatherList.filter(i => i.type === 'Weather' && (i.webhookIds || []).includes(w.id)).length;
+            const moonChecked = (totalMoons > 0 && moonSubs === totalMoons) ? 'checked' : '';
+            const weatherChecked = (totalWeathers > 0 && weatherSubs === totalWeathers) ? 'checked' : '';
+            return `
+            <div class="border border-gray-200 dark:border-gray-700 rounded p-3 mb-2 bg-white dark:bg-gray-800">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="overflow-hidden mr-2 flex-grow">
+                        <div class="flex items-center gap-2"><strong class="truncate text-sm">${w.description}</strong></div>
+                        <small class="text-gray-500 block truncate text-xs">${w.url}</small>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="relative inline-flex items-center cursor-pointer" title="Enable/Disable">
+                            <input type="checkbox" class="sr-only peer" ${w.active ? 'checked' : ''} onchange="toggleWb(${w.originalIndex})">
+                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        </label>
+                        <button onclick="showWebhookModal(${w.originalIndex})" class="p-1 text-gray-500 hover:text-blue-500" title="Edit Webhook"><i class="bi bi-pencil"></i></button>
+                        <button onclick="removeWebhook(${w.originalIndex})" class="p-1 text-gray-500 hover:text-red-500" title="Delete Webhook"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <small class="text-gray-500 font-bold text-xs">Notify For:</small>
+                    <div class="flex items-center"><input type="checkbox" id="wb-moon-${w.id}" class="mr-1" ${moonChecked} onchange="toggleWebhookSubscription(${w.id}, 'Moon')"><label class="text-xs cursor-pointer text-blue-600 font-medium" for="wb-moon-${w.id}"><i class="bi bi-moon-stars"></i> Moons (${moonSubs}/${totalMoons})</label></div>
+                    <div class="flex items-center"><input type="checkbox" id="wb-weather-${w.id}" class="mr-1" ${weatherChecked} onchange="toggleWebhookSubscription(${w.id}, 'Weather')"><label class="text-xs cursor-pointer text-yellow-600 font-medium" for="wb-weather-${w.id}"><i class="bi bi-cloud-haze"></i> Weathers (${weatherSubs}/${totalWeathers})</label></div>
+                    <div class="ml-auto"><button class="text-xs px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700" onclick="showWebhookEventsModal(${w.originalIndex})" title="Select Specific Events"><i class="bi bi-list-check"></i> Select</button></div>
+                </div>
+            </div>
+            <script>(function(){const m=document.getElementById('wb-moon-${w.id}');if(m)m.indeterminate=${moonSubs>0&&moonSubs<totalMoons};const w=document.getElementById('wb-weather-${w.id}');if(w)w.indeterminate=${weatherSubs>0&&weatherSubs<totalWeathers};})();<\/script>`;
+        };
+        let html = '';
+        if(activeWebhooks.length > 0) html += `<h6 class="text-green-600 text-xs font-bold mb-2">Active Webhooks</h6>` + activeWebhooks.map(renderItem).join('');
+        if(inactiveWebhooks.length > 0) html += `<h6 class="text-gray-500 text-xs font-bold mb-2 mt-4">Inactive Webhooks</h6>` + inactiveWebhooks.map(renderItem).join('');
+        c.innerHTML = html;
+    };
+
+    function toggleWebhookSubscription(webhookId, type) {
+        const targetItems = moonWeatherList.filter(i => i.type === type);
+        if (targetItems.length === 0) { showToast(`No ${type}s to assign.`, 'info'); return; }
+        const allSubscribed = targetItems.every(i => (i.webhookIds || []).includes(webhookId));
+        targetItems.forEach(item => {
+            if (!item.webhookIds) item.webhookIds = [];
+            if (allSubscribed) item.webhookIds = item.webhookIds.filter(id => id !== webhookId);
+            else if (!item.webhookIds.includes(webhookId)) item.webhookIds.push(webhookId);
         });
-    </script>
+        saveSettings(); renderList(); renderWebhookList(); showToast(`${allSubscribed ? "Unsubscribed from" : "Subscribed to"} all ${type}s.`);
+    }
+
+    function showWebhookEventsModal(webhookIndex) {
+        if (!webhookList[webhookIndex]) return;
+        currentEditingWebhookIndex = webhookIndex;
+        const webhook = webhookList[webhookIndex];
+        webhookEventsModalTitle.innerHTML = `Select events for <strong>${webhook.description}</strong>:`;
+        if(webhookEventsSearchInput) webhookEventsSearchInput.value = "";
+        renderWebhookEventsList(webhook.id);
+        webhookEventsModal.classList.remove('hidden'); webhookEventsModal.classList.add('flex');
+    }
+    function hideWebhookEventsModal() { webhookEventsModal.classList.add('hidden'); webhookEventsModal.classList.remove('flex'); currentEditingWebhookIndex = -1; }
+    
+    function renderWebhookEventsList(webhookId, filterText = "") {
+        const sortedEvents = [...moonWeatherList].sort((a, b) => {
+            if(a.type !== b.type) return a.type === 'Moon' ? -1 : 1;
+            return b.multiplier - a.multiplier;
+        });
+        if (sortedEvents.length === 0) { webhookEventsListContainer.innerHTML = '<div class="p-3 bg-yellow-100 text-yellow-800 rounded text-xs">No events found.</div>'; return; }
+        let html = ''; let lastType = null;
+        sortedEvents.forEach(item => {
+            if (filterText && !item.name.toLowerCase().includes(filterText.toLowerCase())) return;
+            if (item.type !== lastType) {
+                const typeColor = item.type === 'Moon' ? 'text-blue-600' : 'text-cyan-600';
+                html += `<div class="text-xs font-bold ${typeColor} bg-gray-100 dark:bg-gray-800 border-b dark:border-gray-700 py-1 sticky top-0 mb-1 z-10">${item.type}s</div>`;
+                lastType = item.type;
+            }
+            const isChecked = (item.webhookIds || []).includes(webhookId) ? 'checked' : '';
+            html += `
+            <div class="webhook-select-item flex items-center justify-between p-2 border-b dark:border-gray-700 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onclick="toggleWebhookEventCheckbox('${item.id}')">
+                <div class="overflow-hidden mr-2">
+                    <div class="flex items-center gap-1 text-sm font-bold">${item.name}</div>
+                    <div class="text-xs text-gray-500">${item.multiplier}x Multiplier</div>
+                </div>
+                <div class="m-0">
+                    <input class="webhook-event-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" type="checkbox" value="${item.id}" id="weCheck-${item.id}" ${isChecked} onclick="event.stopPropagation()">
+                </div>
+            </div>`;
+        });
+        webhookEventsListContainer.innerHTML = html || '<div class="text-center text-gray-400 text-xs p-3">No matching events found.</div>';
+    }
+
+    function filterWebhookEventsSelection() {
+        if (currentEditingWebhookIndex === -1) return;
+        renderWebhookEventsList(webhookList[currentEditingWebhookIndex].id, webhookEventsSearchInput.value.trim());
+    }
+    function toggleWebhookEventCheckbox(id) { const cb = document.getElementById(`weCheck-${id}`); if (cb) cb.checked = !cb.checked; }
+    function toggleSelectAllEventsForWebhook(selectAll) { document.querySelectorAll('.webhook-event-checkbox').forEach(cb => cb.checked = selectAll); }
+    function saveWebhookEvents() {
+        if (currentEditingWebhookIndex === -1) return;
+        const webhookId = webhookList[currentEditingWebhookIndex].id;
+        document.querySelectorAll('.webhook-event-checkbox').forEach(cb => {
+            const itemId = parseInt(cb.value);
+            const item = moonWeatherList.find(i => i.id === itemId);
+            if (item) {
+                if (!item.webhookIds) item.webhookIds = [];
+                if (cb.checked) { if (!item.webhookIds.includes(webhookId)) item.webhookIds.push(webhookId); } 
+                else { item.webhookIds = item.webhookIds.filter(id => id !== webhookId); }
+            }
+        });
+        saveSettings(); renderList(); renderWebhookList(); hideWebhookEventsModal(); showToast(`Events updated.`);
+    }
+    function toggleWb(i) { webhookList[i].active = !webhookList[i].active; saveSettings(); renderWebhookList(); }
+    function removeWebhook(i) { const wb = webhookList[i]; if(confirm(`Delete webhook "${wb.description}"?`)) { webhookList.splice(i,1); saveSettings(); renderWebhookList(); showToast(`Webhook "${wb.description}" deleted.`); } }
+    function updateSearchDatalist() {
+        const dl = document.getElementById('eventNamesList'); dl.innerHTML = ''; const allNames = new Set();
+        moonWeatherList.forEach(i => allNames.add(i.name));
+        const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
+        Object.values(evs).flat().forEach(e => allNames.add(e.name));
+        [...allNames].sort().forEach(n => { const opt = document.createElement('option'); opt.value = n; dl.appendChild(opt); });
+    }
+    function renderRecentEvents() {
+        const date = document.getElementById('eventDatePicker').value;
+        const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
+        const dayEvents = evs[date] || [];
+        const container = document.getElementById('recentEventsList');
+        if(!dayEvents.length) { container.innerHTML='<p class="text-center text-gray-400 text-xs mt-4">No events found.</p>'; return; }
+        const search = document.getElementById('eventSearchInput').value.toLowerCase();
+        const typeFilter = document.querySelector('input[name="typeFilter"]:checked').value;
+        let filtered = dayEvents.map((e, index) => ({...e, originalIndex: index})).filter(e => {
+            if(typeFilter !== 'All' && e.type !== typeFilter) return false;
+            if(search && !e.name.toLowerCase().includes(search)) return false;
+            return true;
+        });
+        filtered.sort((a,b) => eventSortOrder === 'desc' ? b.start - a.start : a.start - b.start);
+        container.innerHTML = `<div class="flex flex-col">` + filtered.map(e => `
+            <div class="slide-reveal-wrapper flex group border-b border-gray-100 dark:border-gray-700 last:border-0 relative h-[60px]">
+                <div class="bg-white dark:bg-gray-800 p-2 flex-grow relative z-10 transition-transform">
+                    <div class="flex justify-between"><strong class="text-sm">${e.name}</strong><small class="text-gray-500 text-xs">${new Date(e.start).toLocaleTimeString()}</small></div>
+                    <div class="text-gray-500 text-xs">Duration: ${formatDuration(e.duration)}</div>
+                </div>
+                <div class="slide-reveal-action"><div class="w-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white cursor-pointer" onclick="deleteHistoryItem('${date}', ${e.originalIndex})"><i class="bi bi-trash"></i></div></div>
+            </div>`).join('') + `</div>`;
+    }
+    function deleteHistoryItem(date, index) {
+        const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
+        if(evs[date] && evs[date][index]) {
+            const eventName = evs[date][index].name;
+            evs[date].splice(index, 1);
+            if (evs[date].length === 0) delete evs[date];
+            localStorage.setItem('dailyEvents', JSON.stringify(evs));
+            renderRecentEvents(); try { updateItemListDropdown(); } catch(e){} updateEventStatistics(); showToast(`Deleted "${eventName}".`);
+        }
+    }
+    function clearHistory() { if(confirm("Clear entire event history?")) { localStorage.removeItem('dailyEvents'); renderRecentEvents(); try { updateItemListDropdown(); } catch(e){} updateEventStatistics(); showToast("History cleared."); } }
+
+    // --- Stats & Charts ---
+    function getTimeRange() {
+        const s = document.getElementById('statsDateStart').value.split('-'); const e = document.getElementById('statsDateEnd').value.split('-');
+        return { start: new Date(s[0], s[1]-1, s[2], 0, 0, 0), end: new Date(e[0], e[1]-1, e[2], 23, 59, 59, 999) };
+    }
+    function updateItemListDropdown() {
+        const { start, end } = getTimeRange();
+        const typeFilter = document.querySelector('input[name="statsTypeFilter"]:checked').value;
+        const dataList = document.getElementById('statsItemDataList');
+        const dailyEvents = JSON.parse(localStorage.getItem('dailyEvents')) || {};
+        const availableItems = new Set();
+        Object.keys(dailyEvents).forEach(dateKey => {
+            dailyEvents[dateKey].forEach(event => {
+                if (event.start >= start.getTime() && event.start <= end.getTime()) {
+                    if (typeFilter === 'All' || event.type === typeFilter) availableItems.add(event.name);
+                }
+            });
+        });
+        dataList.innerHTML = ''; Array.from(availableItems).sort().forEach(name => { const option = document.createElement('option'); option.value = name; dataList.appendChild(option); });
+        updateEventStatistics(); 
+    };
+    function getItemColor(name, type) {
+        const n = name.toLowerCase();
+        if (n.includes('blood') || n.includes('red')) return 'rgba(220, 53, 69, 0.7)';
+        if (n.includes('blue') || n.includes('rain')) return 'rgba(13, 110, 253, 0.7)';
+        if (n.includes('gold') || n.includes('sun')) return 'rgba(255, 193, 7, 0.7)';
+        if (n.includes('void') || n.includes('dark')) return 'rgba(33, 37, 41, 0.7)';
+        if (type === 'Moon') return 'rgba(111, 66, 193, 0.7)'; return 'rgba(253, 126, 20, 0.7)';
+    }
+    function updateEventStatistics() {
+        const dailyEvents = JSON.parse(localStorage.getItem('dailyEvents')) || {};
+        const { start, end } = getTimeRange();
+        const typeFilter = document.querySelector('input[name="statsTypeFilter"]:checked').value;
+        const itemFilter = document.getElementById('statsItemFilter').value.toLowerCase();
+        const metric = document.getElementById('statsMetricFilter').value; 
+        const aggregated = {};
+        Object.keys(dailyEvents).forEach(dateKey => {
+            dailyEvents[dateKey].forEach(event => {
+                if (event.start >= start.getTime() && event.start <= end.getTime()) {
+                    if ((typeFilter === 'All' || event.type === typeFilter) && (!itemFilter || event.name.toLowerCase().includes(itemFilter))) {
+                        if (!aggregated[event.name]) aggregated[event.name] = { count: 0, totalDuration: 0, type: event.type };
+                        aggregated[event.name].count++; aggregated[event.name].totalDuration += event.duration;
+                    }
+                }
+            });
+        });
+        const labels = [], data = [], colors = [];
+        const sortedKeys = Object.keys(aggregated).sort((a, b) => {
+            const va = metric === 'count' ? aggregated[a].count : aggregated[a].totalDuration;
+            const vb = metric === 'count' ? aggregated[b].count : aggregated[b].totalDuration;
+            return vb - va;
+        });
+        sortedKeys.forEach(key => {
+            labels.push(key);
+            data.push(metric === 'count' ? aggregated[key].count : (aggregated[key].totalDuration / aggregated[key].count / 60000));
+            colors.push(getItemColor(key, aggregated[key].type));
+        });
+        const placeholder = document.getElementById('chartPlaceholder');
+        if (data.length === 0) { placeholder.style.display = 'block'; if (eventStatsChartInstance) { eventStatsChartInstance.destroy(); eventStatsChartInstance = null; } } 
+        else { placeholder.style.display = 'none'; renderEventStatsChart(data, labels, colors, metric === 'avgTime' ? "Avg Time" : "Occurrences", metric); }
+    };
+    function renderEventStatsChart(data, labels, bgColors, labelText, metricType) {
+        const ctx = document.getElementById('eventStatsChart').getContext('2d');
+        if (eventStatsChartInstance) eventStatsChartInstance.destroy();
+        eventStatsChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ label: labelText, data: data, backgroundColor: bgColors, borderWidth: 1 }] },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                scales: { 
+                    y: { 
+                        beginAtZero: true,
+                        ticks: { color: document.documentElement.classList.contains('dark') ? '#cbd5e0' : '#4a5568', callback: function(value) { if (metricType === 'avgTime') { const sec = Math.round(value * 60); const m = Math.floor(sec / 60); const s = sec % 60; return `${m}m ${s}s`; } return value; } },
+                    },
+                    x: { ticks: { color: document.documentElement.classList.contains('dark') ? '#cbd5e0' : '#4a5568' } }
+                },
+                plugins: { legend: { labels: { color: document.documentElement.classList.contains('dark') ? '#cbd5e0' : '#4a5568' } }, tooltip: { callbacks: { label: function(context) { let label = context.dataset.label || ''; if (label) { label += ': '; } if (context.parsed.y !== null) { if (metricType === 'avgTime') { const sec = Math.round(context.parsed.y * 60); const m = Math.floor(sec / 60); const s = sec % 60; label += `${m}m ${s}s`; } else { label += context.parsed.y; } } return label; } } } }
+            }
+        });
+    };
+
+    function updateUploadLabel(input) {
+        const display = document.getElementById('fileNameDisplay');
+        if(input.files[0]) {
+            display.textContent = input.files[0].name;
+            Papa.parse(input.files[0], { header:true, skipEmptyLines:true, complete: (res) => {
+                let c=0;
+                res.data.forEach(row => {
+                    const n=row.Name||row.name, t=row.Type||row.type, m=parseFloat(row.Multiplier||row.multiplier);
+                    if(n && t && m && !moonWeatherList.some(x=>x.name===n)) {
+                        moonWeatherList.push({id:Date.now()+c, name:n, type:t, multiplier:m, chances: row.Chances||row.chances||""});
+                        c++;
+                    }
+                });
+                if(c>0) { saveSettings(); renderList(); showToast(`Imported ${c} items`); }
+            }});
+        } else { display.textContent = "Choose CSV..."; }
+    }
+    function exportEvents() {
+        const csv = Papa.unparse(moonWeatherList.map(i => ({Name:i.name, Type:i.type, Multiplier:i.multiplier, Chances:i.chances||""})));
+        const blob = new Blob([csv], {type:'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fyp_events.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); showToast("Exported CSV file.");
+    }
+
+	function sendDiscordNotification(item, status, dur) {
+		// Filter webhooks that are:
+		// 1. Globally active
+		// 2. Included in this specific event's authorized list (item.webhookIds)
+		const activeHooks = webhookList.filter(w => 
+			w.active && 
+			item.webhookIds && 
+			item.webhookIds.includes(w.id)
+		);
+
+		if(!activeHooks.length) return;
+
+		const msg = status === 'start' ? `${item.name} (Gives **${item.multiplier}x!**) **has started!**` : `${item.name} **ended!** (Duration: ${formatDuration(dur)})`;
+		
+		activeHooks.forEach(h => {
+			fetch(h.url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content: msg}) })
+			.then(r => { if (r.ok) addLog(`[DISCORD] Sent ${status} notification to ${h.description}.`); })
+			.catch(e => addLog(`[DISCORD] Error (${h.description}): ${e.message}`));
+		});
+	}
+
+    function addRecentEvent(item, dur, start) {
+        const now = new Date(); const k = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const evs = JSON.parse(localStorage.getItem('dailyEvents')) || {};
+        if(!evs[k]) evs[k] = [];
+        evs[k].push({name:item.name, type:item.type, duration:dur, start});
+        localStorage.setItem('dailyEvents', JSON.stringify(evs));
+        renderRecentEvents(); updateItemListDropdown();
+    }
+    function openTab(e,t) {
+        document.querySelectorAll('.tab-content').forEach(x => x.classList.add('hidden'));
+        document.querySelectorAll('.nav-link').forEach(x => { x.classList.remove('font-bold', 'bg-white', 'text-blue-600', 'border-b-2', 'border-blue-600', 'dark:bg-gray-800'); x.classList.add('font-medium', 'text-gray-600', 'hover:bg-gray-200', 'dark:text-gray-400', 'dark:hover:bg-gray-700'); });
+        document.getElementById(t).classList.remove('hidden');
+        const link = e.currentTarget;
+        link.classList.remove('font-medium', 'text-gray-600', 'hover:bg-gray-200', 'dark:text-gray-400', 'dark:hover:bg-gray-700');
+        link.classList.add('font-bold', 'bg-white', 'text-blue-600', 'border-b-2', 'border-blue-600', 'dark:bg-gray-800');
+    };
+    
+    function hideItemWebhookModal() { document.getElementById('itemWebhookModal').classList.add('hidden'); document.getElementById('itemWebhookModal').classList.remove('flex'); }
+    function saveItemWebhooks() { hideItemWebhookModal(); } 
+    function showItemModal(index) {
+        const modal = document.getElementById('itemModal'); const title = document.getElementById('modalTitle');
+        const idxInput = document.getElementById('itemIndex'); const nameIn = document.getElementById('itemName'); const typeIn = document.getElementById('itemType'); const multIn = document.getElementById('itemMultiplier'); const chanceIn = document.getElementById('itemChances');
+        idxInput.value = index;
+        if (index === -1) { title.textContent = "Add Event"; nameIn.value = ""; typeIn.value = "Moon"; multIn.value = "3"; chanceIn.value = ""; } 
+        else { const item = moonWeatherList[index]; if (!item) return; title.textContent = "Edit Event"; nameIn.value = item.name; typeIn.value = item.type; multIn.value = item.multiplier; chanceIn.value = item.chances || ""; }
+        modal.classList.remove('hidden'); modal.classList.add('flex'); nameIn.focus();
+    }
+    function hideItemModal() { document.getElementById('itemModal').classList.add('hidden'); document.getElementById('itemModal').classList.remove('flex'); }
+    function removeItem(index) {
+        const item = moonWeatherList[index];
+        if(confirm(`Delete "${item.name}"?`)) { moonWeatherList.splice(index, 1); saveSettings(); renderList(); showToast(`Deleted "${item.name}"`); }
+    }
+    document.getElementById('itemForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const idx = parseInt(document.getElementById('itemIndex').value);
+        const name = document.getElementById('itemName').value.trim();
+        const type = document.getElementById('itemType').value;
+        const mult = parseFloat(document.getElementById('itemMultiplier').value);
+        const chances = document.getElementById('itemChances').value.trim();
+        if (!name) { showToast("Name is required", "error"); return; }
+        if (isNaN(mult)) { showToast("Valid multiplier required", "error"); return; }
+        if (idx === -1) { moonWeatherList.push({ id: Date.now(), name, type, multiplier: mult, chances }); showToast(`Added "${name}"`); } 
+        else { moonWeatherList[idx].name = name; moonWeatherList[idx].type = type; moonWeatherList[idx].multiplier = mult; moonWeatherList[idx].chances = chances; showToast(`Updated "${name}"`); }
+        saveSettings(); renderList(); hideItemModal();
+    });
+    function showWebhookModal(index) {
+        const modal = document.getElementById('webhookModal'); const title = document.getElementById('webhookModalTitle');
+        const idxInput = document.getElementById('webhookIndex'); const descIn = document.getElementById('modalWebhookDescription'); const urlIn = document.getElementById('modalWebhookUrl');
+        idxInput.value = index;
+        if (index === -1) { title.textContent = "Add Webhook"; descIn.value = ""; urlIn.value = ""; } 
+        else { const wb = webhookList[index]; if (!wb) return; title.textContent = "Edit Webhook"; descIn.value = wb.description; urlIn.value = wb.url; }
+        modal.classList.remove('hidden'); modal.classList.add('flex'); descIn.focus();
+    }
+    function hideWebhookModal() { document.getElementById('webhookModal').classList.add('hidden'); document.getElementById('webhookModal').classList.remove('flex'); }
+    function testNewWebhook() {
+        const url = document.getElementById('modalWebhookUrl').value.trim();
+        if (!url) { showToast("Enter a URL first", "error"); return; }
+        fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: "🔔 **Test notification** from FYP Event Notifier!" }) })
+        .then(res => { if (res.ok) showToast("Test sent! Check Discord."); else showToast("Failed to send test.", "error"); })
+        .catch(err => { showToast("Error: " + err.message, "error"); });
+    }
+    document.getElementById('webhookForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const idx = parseInt(document.getElementById('webhookIndex').value);
+        const description = document.getElementById('modalWebhookDescription').value.trim();
+        const url = document.getElementById('modalWebhookUrl').value.trim();
+        if (!description || !url) { showToast("All fields required", "error"); return; }
+        if (idx === -1) { webhookList.push({ id: Date.now(), description, url, active: true }); showToast("Webhook added"); } 
+        else { webhookList[idx].description = description; webhookList[idx].url = url; showToast("Webhook updated"); }
+        saveSettings(); renderWebhookList(); hideWebhookModal();
+    });
+</script>
 </body>
 </html>
