@@ -767,7 +767,11 @@
             
             if (!activeStatusInterval) activeStatusInterval = setInterval(renderActiveStatus, 500);
             
-            addLog("System initialized.");
+            // --- FIX STARTS HERE ---
+            logContentDiv.innerHTML = ""; // Clears the hardcoded text node from HTML
+            addLog("System initialized."); // Re-adds it as a proper deletable element
+            // --- FIX ENDS HERE ---
+
         } catch (e) { console.error(e); }
     }
 
@@ -1465,7 +1469,9 @@
         const time = new Date().toLocaleTimeString();
         const html = `<div class="border-b border-gray-800 pb-0.5 mb-0.5 font-mono"><span class="text-gray-500">[${time}]</span> ${msg}</div>`;
         logContentDiv.insertAdjacentHTML('afterbegin', html);
-        if (logContentDiv.children.length > 20) {
+        
+        // Changed 'if' to 'while' to force cleanup if multiple logs come in fast
+        while (logContentDiv.children.length > 20) {
             logContentDiv.lastElementChild.remove();
         }
     }
